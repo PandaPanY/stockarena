@@ -14,7 +14,7 @@ SPEC = {**GOOD, "filters": [{"name": "momentum", "params": {"window": 20}, "op":
         "risk": {"stop_loss": 0.08}}
 
 
-def test_episode_pnl_adds_up_to_nav_change():
+def test_episode_pnl_adds_up_to_nav_change(db):
     cfg = LabSettings.from_dict(SETTINGS)
     res = run_backtest(parse_spec(SPEC), PANEL, cfg.train_start, PANEL.dates[-1], explain=True)
     assert sum(e.pnl for e in res.episodes) == pytest.approx(res.nav[-1] - res.initial_cash, rel=1e-9)
@@ -24,7 +24,7 @@ def test_episode_pnl_adds_up_to_nav_change():
     assert plain.nav[-1] == pytest.approx(res.nav[-1]) and not plain.rebalances
 
 
-def test_details_windows_and_reasons():
+def test_details_windows_and_reasons(db):
     cfg = LabSettings.from_dict(SETTINGS)
     d = details.details(1, SPEC, PANEL, cfg, "all")
     s = d["summary"]

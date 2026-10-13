@@ -121,7 +121,7 @@ async def test_first_decision_copies_rule_targets(stub_rule, monkeypatch):
     assert out.targets is None
 
 
-async def test_failure_falls_back_to_rule_and_held_not_reviewed(stub_rule, monkeypatch):
+async def test_failure_falls_back_to_rule_and_held_not_reviewed(db, stub_rule, monkeypatch):
     seen = []
 
     async def broken(texts, d, provider, model, params=None, use_skills=True):

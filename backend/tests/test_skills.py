@@ -14,9 +14,12 @@ from app.skills import egress_proxy, gate, package, sandbox, service
 
 
 @pytest.fixture(autouse=True)
-def _skills_on(monkeypatch):
+def _skills_on(settings, monkeypatch):
     """这些用例测试技能本身：打开总开关（默认关闭的行为见 test_skills_gate.py）。"""
+    from app.core.config import get_settings
+
     monkeypatch.setenv("SA_SKILLS_ENABLED", "true")
+    get_settings.cache_clear()          # 隔离用的 settings fixture 已经读过一次配置
     gate.reset_cache()
     yield
     gate.reset_cache()

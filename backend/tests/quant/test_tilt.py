@@ -47,7 +47,7 @@ def test_apply_tilt_caps():
     assert all(v == 0 for v in allzero.values())
 
 
-async def test_tilt_first_decision_and_skip(monkeypatch):
+async def test_tilt_first_decision_and_skip(db, monkeypatch):
     calls = {"first": True, "targets": None}
 
     def fake_ctx(pid, aid):
