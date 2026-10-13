@@ -1,0 +1,15 @@
+StockArena
+Copyright (C) 2026 StockArena 作者
+
+本项目采用 GNU Affero General Public License v3.0（仅限第 3 版）发布，全文见 LICENSE。
+如果你修改本项目并通过网络向他人提供服务，需要按 AGPL-3.0 第 13 条向这些用户提供修改后的源代码。
+
+第三方代码
+----------
+- backend/app/market/providers/baostock_cn.py 中的 _send_msg 参照 baostock（BSD 许可证）的
+  baostock.util.socketutil.send_msg 改写报文解析部分，并增加了超时与断线处理。
+
+依赖库
+------
+运行所需的 Python 与 JavaScript 依赖库分别列在 backend/pyproject.toml 与 frontend/package.json 中，
+各自遵循其原有许可证（均为 MIT、BSD、Apache-2.0、ISC、MPL-2.0 等宽松许可证，与 AGPL-3.0 兼容）。

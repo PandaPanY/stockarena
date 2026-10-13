@@ -1,0 +1,20 @@
+# A股核心 ETF 池（10 只）
+# t0：是否 T+0（跨境、债券、黄金、货币 ETF 为 T+0）
+# price_limit_pct：涨跌幅限制（跟踪创业板 / 科创板指数的 ETF 为 20%）
+# ⚠️ T+0 与涨跌幅属性需定期核对交易所规则
+name: cn_etf_core
+title: A股核心ETF
+market: CN
+benchmark: 000300.SH
+description: 宽基、跨境、黄金、国债等 10 只主流 ETF
+members:
+  - { symbol: 510050.SH, name: 上证50ETF, type: etf, t0: false, price_limit_pct: 0.10 }
+  - { symbol: 510300.SH, name: 沪深300ETF, type: etf, t0: false, price_limit_pct: 0.10 }
+  - { symbol: 510500.SH, name: 中证500ETF, type: etf, t0: false, price_limit_pct: 0.10 }
+  - { symbol: 512100.SH, name: 中证1000ETF, type: etf, t0: false, price_limit_pct: 0.10 }
+  - { symbol: 159915.SZ, name: 创业板ETF, type: etf, t0: false, price_limit_pct: 0.20 }
+  - { symbol: 588000.SH, name: 科创50ETF, type: etf, t0: false, price_limit_pct: 0.20 }
+  - { symbol: 513100.SH, name: 纳指ETF, type: etf, t0: true, price_limit_pct: 0.10 }
+  - { symbol: 513180.SH, name: 恒生科技指数ETF, type: etf, t0: true, price_limit_pct: 0.10 }
+  - { symbol: 518880.SH, name: 黄金ETF, type: etf, t0: true, price_limit_pct: 0.10 }
+  - { symbol: 511010.SH, name: 国债ETF, type: etf, t0: true, price_limit_pct: 0.10 }

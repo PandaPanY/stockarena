@@ -1,0 +1,32 @@
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--el-bg-color-page);
+  color: var(--el-text-color-primary);
+}
+
+/* A股习惯：红涨绿跌（后续可在设置中切换为美股习惯） */
+:root {
+  --sa-up: #e5484d;
+  --sa-down: #30a46c;
+}
+
+.sa-up {
+  color: var(--sa-up);
+}
+
+.sa-down {
+  color: var(--sa-down);
+}
+
+.sa-page-title {
+  margin: 0 0 16px;
+  font-size: 20px;
+  font-weight: 600;
+}

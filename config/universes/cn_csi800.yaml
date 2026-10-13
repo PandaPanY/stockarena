@@ -1,0 +1,7 @@
+# 中证800 成分股（沪深300 + 中证500）
+name: cn_csi800
+title: 中证800成分股
+market: CN
+index: "000906"
+benchmark: 000906.SH
+description: 沪深300 与中证500 合计 800 只股票，覆盖大中盘

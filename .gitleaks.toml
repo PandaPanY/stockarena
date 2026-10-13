@@ -1,0 +1,11 @@
+# gitleaks 配置：沿用默认规则，只放行测试里明显是假值的密钥（本地运行：gitleaks git . / gitleaks dir .）
+title = "StockArena gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "测试用的假密钥"
+paths = ['''^backend/tests/''']
+regexes = ['''sk-secret-123456''', '''sk-test-123456''', '''abcdef123456''']
+regexTarget = "match"

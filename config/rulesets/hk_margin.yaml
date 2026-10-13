@@ -1,0 +1,24 @@
+# 港股·孖展与卖空（示例参数）⚠️ 以券商孖展条款为准；现实中只有指定证券可以卖空，这里按理想模式全部允许
+name: hk_margin
+title: 港股·孖展与卖空
+market: HK
+description: 允许孖展（融资）与卖空，总敞口不超过净值 2 倍；保证金比率（净值 / 总敞口）维持 30%、强平 25%；融资年息 6%、借券年费 5%
+params:
+  slippage_bps: "5"
+  participation_rate: "0.10"
+  max_position_pct: "0.30"
+  max_orders_per_round: 10
+  rebalance_threshold_pct: "0.01"
+  cash_buffer_pct: "0.005"
+  commission_rate: "0.0003"
+  commission_min: "3"
+  allow_short: true
+  allow_margin: true
+  max_leverage: "2"
+  margin_check_method: equity_ratio
+  initial_margin: "0.5"
+  maintenance_margin: "0.3"
+  liquidation_margin: "0.25"
+  margin_interest_rate: "0.06"
+  borrow_fee_rate: "0.05"
+  day_count: 365

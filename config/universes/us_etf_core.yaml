@@ -1,0 +1,13 @@
+# 美股核心 ETF
+name: us_etf_core
+title: 美股核心ETF
+market: US
+benchmark: NDX.US
+description: 纳指100、标普500、罗素2000、半导体、长期美债、黄金
+members:
+  - { symbol: QQQ, name: 纳指100ETF, type: etf }
+  - { symbol: SPY, name: 标普500ETF, type: etf }
+  - { symbol: IWM, name: 罗素2000ETF, type: etf }
+  - { symbol: SOXX, name: 半导体ETF, type: etf }
+  - { symbol: TLT, name: 20年期以上美债ETF, type: etf }
+  - { symbol: GLD, name: 黄金ETF, type: etf }

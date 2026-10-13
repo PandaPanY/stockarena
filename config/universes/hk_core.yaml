@@ -1,0 +1,39 @@
+# 港股核心蓝筹 30 只（人工维护：恒生指数中市值大、流动性好的代表性成分）
+# 每手股数、是否征印花税从港交所证券名单自动获取；获取失败时可在成员上填写 lot
+# ⚠️ 成分请定期核对
+name: hk_core
+title: 港股核心蓝筹（30只）
+market: HK
+benchmark: HSI.HK
+description: 科技、金融、能源、地产、消费等行业的 30 只港股龙头
+members:
+  - { symbol: 00700.HK, name: 腾讯控股 }
+  - { symbol: 09988.HK, name: 阿里巴巴-W }
+  - { symbol: 03690.HK, name: 美团-W }
+  - { symbol: 01810.HK, name: 小米集团-W }
+  - { symbol: 09618.HK, name: 京东集团-SW }
+  - { symbol: 01024.HK, name: 快手-W }
+  - { symbol: 09999.HK, name: 网易-S }
+  - { symbol: 09888.HK, name: 百度集团-SW }
+  - { symbol: 02015.HK, name: 理想汽车-W }
+  - { symbol: 01211.HK, name: 比亚迪股份 }
+  - { symbol: 00175.HK, name: 吉利汽车 }
+  - { symbol: 00981.HK, name: 中芯国际 }
+  - { symbol: 00941.HK, name: 中国移动 }
+  - { symbol: 00005.HK, name: 汇丰控股 }
+  - { symbol: 01299.HK, name: 友邦保险 }
+  - { symbol: 00388.HK, name: 香港交易所 }
+  - { symbol: 02318.HK, name: 中国平安 }
+  - { symbol: 00939.HK, name: 建设银行 }
+  - { symbol: 01398.HK, name: 工商银行 }
+  - { symbol: 03988.HK, name: 中国银行 }
+  - { symbol: 00883.HK, name: 中国海洋石油 }
+  - { symbol: 00857.HK, name: 中国石油股份 }
+  - { symbol: 00386.HK, name: 中国石油化工股份 }
+  - { symbol: 01109.HK, name: 华润置地 }
+  - { symbol: 00016.HK, name: 新鸿基地产 }
+  - { symbol: 00001.HK, name: 长和 }
+  - { symbol: 00002.HK, name: 中电控股 }
+  - { symbol: 02020.HK, name: 安踏体育 }
+  - { symbol: 02269.HK, name: 药明生物 }
+  - { symbol: 00027.HK, name: 银河娱乐 }

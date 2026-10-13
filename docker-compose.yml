@@ -1,0 +1,23 @@
+# 一键启动：docker compose up -d   查看首次设置码：docker compose logs | grep 设置码
+# 详细说明见 docs/DEPLOY.md
+services:
+  stockarena:
+    build: .
+    image: stockarena:latest
+    container_name: stockarena
+    restart: unless-stopped
+    ports:
+      # 只想本机访问时改为 "127.0.0.1:18080:18080"
+      - "18080:18080"
+    volumes:
+      # 数据库、日志、主密钥（secret.key）、行情缓存。请定期备份整个目录
+      - ./data:/app/data
+      # 需要改配置时：复制 config/config.example.yaml 为 config/config.yaml，再取消下一行的注释
+      # - ./config/config.yaml:/app/config/config.yaml:ro
+    environment:
+      # 推送消息里的页面链接（可选），如 http://10.0.0.2:18080
+      # SA_PUBLIC_URL: "http://your-server:18080"
+      # 访问境外 AI 模型（OpenAI、Claude、Gemini 等）需要代理时填写；国内行情源会自动直连
+      # HTTP_PROXY: "http://proxy:7890"
+      # HTTPS_PROXY: "http://proxy:7890"
+      TZ: Asia/Shanghai

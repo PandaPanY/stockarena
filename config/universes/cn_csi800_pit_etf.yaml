@@ -1,0 +1,11 @@
+# 中证800（时点）+ 核心 ETF：比沪深300 多出 500 只中盘股，横截面因子有更多选择空间（PRD 3.9）
+# 股票只在「纳入中证800 之后」才可选（半时点）；历史上被剔除的股票仍然缺失，回测仍偏乐观。
+# 2026-10-09 起改用全时点的 cn_csi800_hist，本股票池只保留作对比；新浪名单比当前成分少 112 只。
+name: cn_csi800_pit_etf
+title: 中证800（半时点，仅作对比）+ 核心ETF
+market: CN
+include: [cn_csi800, cn_etf_core]
+benchmark: 000906.SH
+point_in_time: "000906"
+live_universe: cn_csi800_etf
+description: 缺少历史上被剔除和已退市的股票，回测偏乐观；只用于与全时点股票池对比

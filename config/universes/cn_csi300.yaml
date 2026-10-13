@@ -1,0 +1,7 @@
+# 沪深300 成分股（可选，标的较多，token 消耗大）
+name: cn_csi300
+title: 沪深300成分股
+market: CN
+index: "000300"
+benchmark: 000300.SH
+description: 沪深两市规模大、流动性好的 300 只股票

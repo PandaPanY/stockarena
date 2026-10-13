@@ -1,0 +1,7 @@
+# 中证800 成分股 + 10 只核心 ETF（实时跟踪用，成分为当前名单）
+name: cn_csi800_etf
+title: 中证800 + 核心ETF
+market: CN
+include: [cn_csi800, cn_etf_core]
+benchmark: 000906.SH
+description: 约 810 个标的

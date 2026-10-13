@@ -1,0 +1,7 @@
+# A股只做多·集中持仓：单票上限放宽到 50%，用于研究 AI 在更少约束下的行为
+name: cn_long_only_concentrated
+title: A股·只做多（集中持仓）
+market: CN
+description: 与默认规则相同，但单票上限为净值的 50%
+params:
+  max_position_pct: "0.50"

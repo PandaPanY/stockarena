@@ -1,0 +1,17 @@
+# 港股·只做多。未列出的参数使用代码默认值（backend/app/trading/params.py）
+# ⚠️ 费率为示例值：佣金参考主流互联网券商；印花税、征费、交易费、结算费以港交所和监管机构最新标准为准
+name: hk_long_only
+title: 港股·只做多
+market: HK
+description: 不允许融资融券；单票不超过净值 30%；次日开盘价成交，滑点 5 个基点；T+0，无涨跌停
+params:
+  slippage_bps: "5"
+  participation_rate: "0.10"
+  max_position_pct: "0.30"
+  max_orders_per_round: 10
+  commission_rate: "0.0003"
+  commission_min: "3"
+  platform_fee: "0"
+  hk_stamp_duty_rate: "0.001"
+  allow_short: false
+  allow_margin: false

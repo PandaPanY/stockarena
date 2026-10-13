@@ -1,0 +1,37 @@
+# 美股科技与成长龙头 30 只（人工维护，以纳斯达克100 的大市值成分为主）⚠️ 成分请定期核对
+name: us_core
+title: 美股核心龙头（30只）
+market: US
+benchmark: NDX.US
+description: 纳斯达克100 中市值大、流动性好的 30 只代表性股票
+members:
+  - { symbol: AAPL, name: 苹果 }
+  - { symbol: MSFT, name: 微软 }
+  - { symbol: NVDA, name: 英伟达 }
+  - { symbol: AMZN, name: 亚马逊 }
+  - { symbol: GOOGL, name: 谷歌A }
+  - { symbol: META, name: Meta }
+  - { symbol: TSLA, name: 特斯拉 }
+  - { symbol: AVGO, name: 博通 }
+  - { symbol: NFLX, name: 奈飞 }
+  - { symbol: AMD, name: 超威半导体 }
+  - { symbol: COST, name: 好市多 }
+  - { symbol: PEP, name: 百事 }
+  - { symbol: ADBE, name: 奥多比 }
+  - { symbol: CSCO, name: 思科 }
+  - { symbol: INTC, name: 英特尔 }
+  - { symbol: QCOM, name: 高通 }
+  - { symbol: TXN, name: 德州仪器 }
+  - { symbol: AMAT, name: 应用材料 }
+  - { symbol: MU, name: 美光科技 }
+  - { symbol: INTU, name: 财捷 }
+  - { symbol: ISRG, name: 直觉外科 }
+  - { symbol: BKNG, name: 缤客 }
+  - { symbol: PLTR, name: Palantir }
+  - { symbol: PANW, name: 派拓网络 }
+  - { symbol: CRWD, name: CrowdStrike }
+  - { symbol: ASML, name: 阿斯麦 }
+  - { symbol: PDD, name: 拼多多 }
+  - { symbol: PYPL, name: PayPal }
+  - { symbol: SBUX, name: 星巴克 }
+  - { symbol: AMGN, name: 安进 }

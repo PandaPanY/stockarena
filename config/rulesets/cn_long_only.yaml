@@ -1,0 +1,20 @@
+# A股只做多（MVP 默认规则集）。未列出的参数使用代码默认值（backend/app/trading/params.py）
+# ⚠️ 费率为示例值，请按实际券商与交易所标准调整
+name: cn_long_only
+title: A股·只做多
+market: CN
+description: 不允许融资融券；单票不超过净值 30%；次日开盘价成交，滑点 5 个基点
+params:
+  slippage_bps: "5"
+  participation_rate: "0.10"
+  max_position_pct: "0.30"
+  max_orders_per_round: 10
+  rebalance_threshold_pct: "0.01"
+  cash_buffer_pct: "0.005"
+  commission_rate: "0.00025"
+  commission_min: "5"
+  stamp_duty_rate: "0.0005"
+  transfer_fee_rate: "0.00001"
+  dividend_tax_rate: "0"
+  allow_short: false
+  allow_margin: false

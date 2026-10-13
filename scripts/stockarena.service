@@ -1,0 +1,22 @@
+# 用户级 systemd 服务模板：复制到服务器的 ~/.config/systemd/user/stockarena.service
+# 假设程序放在 ~/stockarena（与 scripts/deploy.sh 的默认目录一致）；%h 由 systemd 替换为当前用户的主目录。
+# 监听地址：0.0.0.0 表示局域网内其他设备可以访问；只想本机访问时改为 127.0.0.1。
+# 安装：systemctl --user daemon-reload && systemctl --user enable --now stockarena
+# 需要开启 linger，退出登录、重启后服务才会继续运行：loginctl enable-linger $USER
+# 常用：systemctl --user status|restart|stop stockarena；日志：journalctl --user -u stockarena -f
+[Unit]
+Description=StockArena AI 策略工坊（后端 + 前端页面）
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/stockarena/backend
+Environment=SA_CONFIG_FILE=%h/stockarena/config/config.yaml
+Environment=PYTHONUNBUFFERED=1
+ExecStart=%h/stockarena/backend/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 18080 --workers 1
+Restart=always
+RestartSec=10
+TimeoutStopSec=60
+
+[Install]
+WantedBy=default.target

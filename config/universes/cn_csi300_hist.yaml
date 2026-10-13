@@ -1,0 +1,11 @@
+# 沪深300（全时点）+ 核心 ETF：历史上每一天都只在当天的真实成分里选股，包括后来被剔除、已经退市的股票（PRD 3.9 G1）
+# 成分记录来自 Baostock 每月快照（见 docs/research/2026-10-08-pit-universe.md）；最新快照之后以中证指数公司的当前名单为准。
+name: cn_csi300_hist
+title: 沪深300（全时点）+ 核心ETF
+market: CN
+include: [cn_csi300, cn_etf_core]
+benchmark: 000300.SH
+point_in_time: "000300"
+history: true
+live_universe: cn_csi300_etf
+description: 含历史上被剔除和已退市的成分股，消除幸存者偏差；今天的可选范围与半时点股票池相同

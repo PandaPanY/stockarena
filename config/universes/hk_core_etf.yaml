@@ -1,0 +1,7 @@
+# 港股默认股票池：核心蓝筹 30 只 + 5 只 ETF
+name: hk_core_etf
+title: 港股核心蓝筹 + ETF
+market: HK
+include: [hk_core, hk_etf_core]
+benchmark: HSI.HK
+description: 港股默认股票池，共 35 个标的

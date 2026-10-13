@@ -1,0 +1,16 @@
+# 美股·只做多。未列出的参数使用代码默认值（backend/app/trading/params.py）
+# ⚠️ 费率为示例值：零佣金券商；SEC 费率每个财年调整
+name: us_long_only
+title: 美股·只做多
+market: US
+description: 不允许融资融券；单票不超过净值 30%；次日开盘价成交，滑点 5 个基点；免佣金，T+0
+params:
+  slippage_bps: "5"
+  participation_rate: "0.10"
+  max_position_pct: "0.30"
+  max_orders_per_round: 10
+  commission_rate: "0"
+  commission_min: "0"
+  platform_fee: "0"
+  allow_short: false
+  allow_margin: false

@@ -1,0 +1,130 @@
+# 策略工坊的初始策略（PRD 3.8）：每种风格一条，AI 以此为起点持续优化。
+# description 会提供给 AI 研究员，说明这种风格的理念与边界（AI 不能偏离风格）。
+# spec 字段见 app/quant/spec.py；因子见「策略工坊 → 因子库」。修改后对新建的策略生效。
+strategies:
+  - style: value
+    title: 价值投资
+    description: |
+      买入估值低、盈利稳定的公司并长期持有：以市盈率、市净率的倒数衡量便宜程度，用 ROE 筛掉价值陷阱。
+      调仓频率低，不追涨杀跌。允许用质量、股息相关的因子改进，但核心必须是「便宜 + 盈利」。
+    spec:
+      universe: { types: [stock], min_listed_days: 250, min_amount: 1 }
+      filters:
+        - { name: ep, op: ">", value: 0 }
+      factors:
+        - { name: ep, direction: high, weight: 1 }
+        - { name: bp, direction: high, weight: 1 }
+        - { name: roe, direction: high, weight: 0.5 }
+      selection: { top_n: 30, buffer: 15 }
+      weighting: { method: equal, max_weight: 0.05 }
+      rebalance: { every_days: 20, min_trade_pct: 0.01 }
+      risk: { exposure: 0.95 }
+
+  - style: momentum
+    title: 趋势跟随
+    description: |
+      顺势而为：买入中期涨势最强、处于上升趋势的股票，趋势破坏或从高点明显回撤时离场；
+      大盘走弱时降低仓位。核心必须是趋势 / 动量，不能改成抄底。
+    spec:
+      universe: { types: [stock], min_listed_days: 250, min_amount: 2 }
+      filters:
+        - { name: ma_bias, params: { window: 60 }, op: ">", value: 0 }
+      factors:
+        - { name: momentum, params: { window: 60, skip: 5 }, direction: high, weight: 1 }
+        - { name: ma_trend, params: { fast: 20, slow: 60 }, direction: high, weight: 0.5 }
+      selection: { top_n: 25, buffer: 10 }
+      weighting: { method: equal, max_weight: 0.06 }
+      rebalance: { every_days: 10, min_trade_pct: 0.01 }
+      timing: { enabled: true, name: ma_bias, params: { window: 60 }, op: ">", value: 0, exposure_off: 0.3 }
+      risk: { exposure: 0.98, trailing_stop: 0.15 }
+
+  - style: mean_reversion
+    title: 均值回归
+    description: |
+      在长期向上、基本面健康的股票中，买入短期超跌的标的，等反弹后卖出，快进快出并严格止损。
+      核心必须是「短期超跌后反弹」。
+    spec:
+      universe: { types: [stock], min_listed_days: 250, min_amount: 2 }
+      filters:
+        - { name: ma_bias, params: { window: 120 }, op: ">", value: 0 }
+        - { name: roe, op: ">", value: 8 }
+      factors:
+        - { name: reversal, params: { window: 5 }, direction: high, weight: 1 }
+        - { name: rsi, params: { window: 14 }, direction: low, weight: 0.5 }
+      selection: { top_n: 20, buffer: 10 }
+      weighting: { method: equal, max_weight: 0.06 }
+      rebalance: { every_days: 10, min_trade_pct: 0.01 }
+      risk: { exposure: 0.95, stop_loss: 0.08 }
+
+  - style: rotation
+    title: ETF 轮动
+    description: |
+      只交易 ETF：在宽基、跨境、黄金、债券等 ETF 之间轮动，把资金集中在近期最强的方向；
+      所有方向都走弱时持有现金。核心必须是 ETF 之间的相对强弱轮动。
+    spec:
+      universe: { types: [etf], min_listed_days: 120, min_amount: 0.5 }
+      filters:
+        - { name: momentum, params: { window: 20 }, op: ">", value: 0 }
+      factors:
+        - { name: momentum, params: { window: 20 }, direction: high, weight: 1 }
+        - { name: momentum, params: { window: 60 }, direction: high, weight: 0.5 }
+      selection: { top_n: 2 }
+      weighting: { method: equal, max_weight: 0.5 }
+      rebalance: { every_days: 5, min_trade_pct: 0.02 }
+      risk: { exposure: 0.98 }
+
+  - style: defensive
+    title: 防御稳健
+    description: |
+      控制回撤优先、收益其次：持有低波动、低贝塔、盈利稳定的股票，分散持仓；
+      大盘趋势转弱时把一半资金转入国债 ETF。核心必须是低波动与回撤控制。
+    spec:
+      universe: { types: [stock], min_listed_days: 250, min_amount: 1 }
+      filters:
+        - { name: ep, op: ">", value: 0 }
+      factors:
+        - { name: volatility, params: { window: 60 }, direction: low, weight: 1 }
+        - { name: beta, params: { window: 120 }, direction: low, weight: 0.5 }
+        - { name: roe, direction: high, weight: 0.5 }
+      selection: { top_n: 30, buffer: 15 }
+      weighting: { method: inverse_vol, vol_window: 60, max_weight: 0.06 }
+      rebalance: { every_days: 20, min_trade_pct: 0.01 }
+      timing: { enabled: true, name: ma_bias, params: { window: 120 }, op: ">", value: 0, exposure_off: 0.5,
+                defensive: 511010.SH }
+      risk: { exposure: 0.95 }
+
+  - style: index_timing
+    title: 指数择时
+    description: |
+      只交易沪深300 ETF：根据大盘趋势决定满仓还是空仓（空仓时持有国债 ETF），不选个股。
+      核心必须是对宽基指数的择时，可以调整择时信号与参数。
+    spec:
+      universe: { types: [etf], symbols: [510300.SH], min_listed_days: 0, min_amount: 0 }
+      factors:
+        - { name: momentum, params: { window: 20 }, direction: high, weight: 1 }
+      selection: { top_n: 1 }
+      weighting: { method: equal, max_weight: 1.0 }
+      rebalance: { every_days: 5, min_trade_pct: 0.05 }
+      timing: { enabled: true, name: ma_bias, params: { window: 60 }, op: ">", value: 0, exposure_off: 0,
+                defensive: 511010.SH }
+      risk: { exposure: 0.98 }
+
+  - style: quality_growth
+    title: 质量成长
+    description: |
+      买入盈利能力强（高 ROE）且利润、营收持续增长的公司，财务稳健（负债率不过高），中期持有。
+      核心必须是「高质量 + 成长」，可以加入趋势因子辅助择时买点。
+    spec:
+      universe: { types: [stock], min_listed_days: 250, min_amount: 1 }
+      filters:
+        - { name: profit_growth, op: ">", value: 0 }
+        - { name: roe, op: ">", value: 10 }
+      factors:
+        - { name: roe, direction: high, weight: 1 }
+        - { name: profit_growth, direction: high, weight: 1 }
+        - { name: revenue_growth, direction: high, weight: 0.5 }
+        - { name: debt_ratio, direction: low, weight: 0.3 }
+      selection: { top_n: 30, buffer: 15 }
+      weighting: { method: equal, max_weight: 0.05 }
+      rebalance: { every_days: 20, min_trade_pct: 0.01 }
+      risk: { exposure: 0.95, trailing_stop: 0.2 }

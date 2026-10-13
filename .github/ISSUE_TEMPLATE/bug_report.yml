@@ -1,0 +1,45 @@
+name: 问题报告
+description: 程序出错、页面异常、结果明显不对
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: 安全漏洞请不要在这里提交，按 SECURITY.md 私下报告。数据拉不下来请用「数据源问题」模板。
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么
+      description: 期望看到什么，实际看到什么
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开「策略实验室」
+        2. 点击……
+        3. 出现……
+    validations:
+      required: true
+  - type: dropdown
+    id: deploy
+    attributes:
+      label: 部署方式
+      options:
+        - Docker
+        - 直接运行（uv + systemd 等）
+        - 本机开发运行
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本或提交
+      placeholder: v0.1.0 或 git log --oneline -1 的结果
+  - type: textarea
+    id: logs
+    attributes:
+      label: 相关日志
+      description: 后端日志（data/logs/ 或 docker compose logs）、浏览器控制台报错。请先删掉其中的密钥和个人信息
+      render: text

@@ -1,0 +1,7 @@
+# 上证50 成分股（从中证指数公司动态获取，赛道创建时冻结成分）
+name: cn_sse50
+title: 上证50成分股
+market: CN
+index: "000016"
+benchmark: 000016.SH
+description: 上海市场规模大、流动性好的 50 只股票

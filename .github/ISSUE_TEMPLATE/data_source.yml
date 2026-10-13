@@ -1,0 +1,42 @@
+name: 数据源问题
+description: 行情、财报、成分股等数据拉不下来或不对
+labels: ["data-source"]
+body:
+  - type: markdown
+    attributes:
+      value: 数据来自第三方免费接口，经常调整格式或限流。请尽量提供下面的信息，方便定位是哪个接口变了。
+  - type: dropdown
+    id: source
+    attributes:
+      label: 数据源
+      multiple: true
+      options:
+        - 新浪
+        - 腾讯
+        - 东方财富
+        - 同花顺
+        - 巨潮资讯
+        - 中证指数
+        - Baostock
+        - 港交所
+        - 乐咕乐股
+        - 不确定
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 现象
+      description: 哪只股票 / 哪个指数、什么日期、在哪个页面或哪一步（准备数据、日终流程、数据质量扫描……）
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志里的报错
+      render: text
+  - type: input
+    id: network
+    attributes:
+      label: 网络环境
+      placeholder: 例如：国内家庭宽带 / 境外服务器 / 经过代理

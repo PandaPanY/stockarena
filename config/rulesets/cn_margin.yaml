@@ -1,0 +1,28 @@
+# A股·融资融券（示例参数）⚠️ 保证金比例、利率、费率以券商两融合同为准
+name: cn_margin
+title: A股·融资融券
+market: CN
+description: 允许融资买入与融券卖空，总敞口不超过净值 2 倍；按维持担保比例 130% / 强平 110% 管理风险；融资年息 6%、融券年费 8%
+params:
+  slippage_bps: "5"
+  participation_rate: "0.10"
+  max_position_pct: "0.30"
+  max_orders_per_round: 10
+  rebalance_threshold_pct: "0.01"
+  cash_buffer_pct: "0.005"
+  commission_rate: "0.00025"
+  commission_min: "5"
+  stamp_duty_rate: "0.0005"
+  transfer_fee_rate: "0.00001"
+  dividend_tax_rate: "0"
+  allow_short: true
+  allow_margin: true
+  max_leverage: "2"
+  margin_check_method: collateral_ratio
+  initial_margin: "0.5"
+  maintenance_margin: "1.3"
+  liquidation_margin: "1.1"
+  margin_interest_rate: "0.06"
+  borrow_fee_rate: "0.08"
+  day_count: 365
+  cn_short_t1: true

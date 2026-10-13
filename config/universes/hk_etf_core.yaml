@@ -1,0 +1,12 @@
+# 港股核心 ETF（港股 ETF 豁免印花税）
+name: hk_etf_core
+title: 港股核心ETF
+market: HK
+benchmark: HSI.HK
+description: 恒生指数、国企指数、恒生科技、沪深300、黄金
+members:
+  - { symbol: 02800.HK, name: 盈富基金, type: etf }
+  - { symbol: 02828.HK, name: 恒生中国企业, type: etf }
+  - { symbol: 03033.HK, name: 南方恒生科技, type: etf }
+  - { symbol: 03188.HK, name: 华夏沪深三百, type: etf }
+  - { symbol: 02840.HK, name: SPDR金, type: etf }

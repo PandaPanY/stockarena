@@ -1,0 +1,47 @@
+# StockArena 全局配置样例
+# 使用方法：复制为 config/config.yaml 后按需修改（config.yaml 不进版本库）
+# 优先级：环境变量（前缀 SA_，如 SA_PUBLIC_URL=http://10.0.0.2:18080）> .env > config.yaml > 代码默认值
+# 每一项的说明见 docs/CONFIG.md
+
+# 部署时由后端托管打包好的前端页面（相对路径以启动目录 backend/ 为准）
+# frontend_dist: ../frontend/dist
+
+# 对外访问地址，用于推送消息里的页面链接
+# public_url: http://your-server:18080
+
+app_name: StockArena
+env: dev
+
+# 监听地址和端口由启动命令决定（uvicorn --host 127.0.0.1 --port 18080；Docker 改端口映射），这里不起作用
+
+# 允许跨域访问后端的前端地址（Vite 开发服务器）
+cors_origins:
+  - http://127.0.0.1:15173
+  - http://localhost:15173
+
+# 运行时数据目录（数据库、日志、主密钥、行情缓存），相对路径以启动目录为准，建议写绝对路径
+# data_dir: /srv/stockarena/data
+
+# 数据库地址。留空则使用 data_dir/stockarena.db（SQLite）
+# 目前只在 SQLite 上测试过
+# database_url:
+
+# 启动时自动执行数据库迁移
+auto_migrate: true
+
+log_level: INFO
+
+# 不经过系统代理、直接访问的域名（国内行情源）。本机开了翻墙代理时，行情网站经代理访问容易被断开
+# direct_hosts: [sina.com.cn, sinajs.cn, eastmoney.com, gtimg.cn, qq.com, csindex.com.cn, sse.com.cn, szse.cn]
+
+# 交易日收盘后自动执行赛道日终流程
+auto_run: true
+
+# 访问保护：接口需要登录（首次打开页面时用首次设置码设置管理员密码）。只在本机自己用、只监听 127.0.0.1 时才可以关闭
+auth_enabled: true
+
+# 交易规则的全局默认值（三级继承：系统默认 → 这里 → config/rulesets/ 中的规则集）。
+# 规则集里写明的参数优先；这里只影响规则集没有写的参数。参数名见 backend/app/trading/params.py
+# rule_defaults:
+#   slippage_bps: "5"
+#   margin_interest_rate: "0.06"

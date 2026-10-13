@@ -1,0 +1,7 @@
+# MVP 默认股票池：上证50 + 10 只核心 ETF（PRD 决策 Q1）
+name: cn_sse50_etf
+title: 上证50 + 核心ETF
+market: CN
+include: [cn_sse50, cn_etf_core]
+benchmark: 000016.SH
+description: MVP 默认股票池，共约 60 个标的

@@ -1,0 +1,7 @@
+# 美股默认股票池：核心龙头 30 只 + 6 只 ETF
+name: us_core_etf
+title: 美股核心龙头 + ETF
+market: US
+include: [us_core, us_etf_core]
+benchmark: NDX.US
+description: 美股默认股票池，共 36 个标的
