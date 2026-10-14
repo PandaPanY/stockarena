@@ -97,7 +97,10 @@ journalctl --user -u stockarena -f  # 查看日志
 
 ### 3.2 从开发机一键更新服务器
 
-在开发机的仓库根目录执行 `bash scripts/deploy.sh`：检查工作区已提交 → 打包前端 → 停止服务并备份数据库（保留最近 10 份）→ 上传代码 → 同步依赖 → 启动并检查。
+在开发机的仓库根目录执行 `bash scripts/deploy.sh`：检查工作区已提交 → 打包前端 → 上传到服务器的临时目录并检查完整 → 停止服务并备份数据库（保留最近 10 份）→ 整体替换代码 → 同步依赖 → 启动并检查。
+
+替换是整目录替换，服务器上的代码与仓库完全一致，仓库里删掉的文件不会残留。保留不动的只有 `data/`、`config/config.yaml` 和 `backend/.venv`。上一版保存在服务器的 `.previous` 目录，出问题时执行 `bash scripts/deploy.sh --rollback` 换回去（再执行一次可以换回新版）。如果新版本带了数据库迁移，回滚代码后旧版本可能无法启动，这时还要从 `data/backup/` 恢复部署前的数据库。
+
 服务器地址用环境变量 `SA_DEPLOY_HOST` 指定，或写在不进版本库的 `scripts/deploy.env` 里（如 `SA_DEPLOY_HOST=user@10.0.0.2`）；需要能免密 ssh 登录。
 
 ## 4. HTTPS 与反向代理
