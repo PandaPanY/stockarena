@@ -240,31 +240,33 @@ async def _run_proc(cmd: list[str], kill_name: str, token: str, timeout: float) 
 # （docker exec），限制与一次性容器完全相同；关闭终端或闲置超时后销毁。AI 调用仍然每次用一次性容器。
 SESSION_IDLE = 15 * 60
 SESSION_SUFFIX = "-term"
+# 后台批量任务（如每天的数据快照）用单独的常驻容器，与用户的技能终端互不影响；任务结束即销毁
+BATCH_SUFFIX = "-batch"
 _sessions: dict[int, float] = {}          # skill_id -> 最近使用时间
 _reaper: asyncio.Task | None = None
 
 
-def session_name(skill_id: int) -> str:
-    return f"sa-skill-{skill_id}{SESSION_SUFFIX}"
+def session_name(skill_id: int, suffix: str = SESSION_SUFFIX) -> str:
+    return f"sa-skill-{skill_id}{suffix}"
 
 
-def session_args(skill_id: int, token: str) -> list[str]:
+def session_args(skill_id: int, token: str, suffix: str = SESSION_SUFFIX) -> list[str]:
     """会话容器：常驻（sleep），--init 回收孤儿进程，其余参数与一次性容器相同。"""
-    name = session_name(skill_id)
+    name = session_name(skill_id, suffix)
     args = docker_args(skill_id, token, ["sleep", "infinity"], name)
     i = args.index("--rm")
     return [*args[:i + 1], "-d", "--init", *args[i + 1:]]
 
 
-async def _ensure_session(skill_id: int, token: str) -> str:
-    name = session_name(skill_id)
+async def _ensure_session(skill_id: int, token: str, suffix: str = SESSION_SUFFIX) -> str:
+    name = session_name(skill_id, suffix)
     code, out = await _exec("docker", "inspect", "-f", "{{.State.Running}}", name, timeout=30)
     if code == 0 and out.strip() == "true":
         return name
     await _exec("docker", "rm", "-f", name, timeout=30)
     _, home = skill_dirs(skill_id)
     home.mkdir(parents=True, exist_ok=True)
-    code, out = await _exec(*session_args(skill_id, token), timeout=60)
+    code, out = await _exec(*session_args(skill_id, token, suffix), timeout=60)
     if code != 0:
         raise RuntimeError(f"启动终端会话失败：{out.strip()[-300:]}")
     return name
@@ -282,6 +284,16 @@ async def run_session(skill_id: int, token: str, argv: list[str], timeout: float
     if res.timed_out:
         _sessions.pop(skill_id, None)
     return res
+
+
+async def run_batch(skill_id: int, token: str, argv: list[str], timeout: float = 60) -> RunResult:
+    """在后台批量任务专用的常驻容器中运行一条命令（省去每次启动容器的几秒；限制与一次性容器相同）。"""
+    name = await _ensure_session(skill_id, token, BATCH_SUFFIX)
+    return await _run_proc(["docker", "exec", name, *argv], name, token, timeout)
+
+
+async def stop_batch(skill_id: int) -> None:
+    await _exec("docker", "rm", "-f", session_name(skill_id, BATCH_SUFFIX), timeout=30)
 
 
 async def stop_session(skill_id: int) -> bool:
@@ -307,8 +319,8 @@ async def cleanup_sessions() -> None:
     if not docker_available():
         return
     try:
-        code, out = await _exec("docker", "ps", "-aq", "--filter", f"name=^sa-skill-[0-9]+{SESSION_SUFFIX}$",
-                                timeout=30)
+        pattern = f"name=^sa-skill-[0-9]+({SESSION_SUFFIX}|{BATCH_SUFFIX})$"
+        code, out = await _exec("docker", "ps", "-aq", "--filter", pattern, timeout=30)
         ids = out.split() if code == 0 else []
         if ids:
             await _exec("docker", "rm", "-f", *ids, timeout=60)

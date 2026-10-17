@@ -42,6 +42,7 @@ from app.models.quant import (
     RealFillRow,
     ResearchRunRow,
 )
+from app.models.research import WestockSnapshotRow
 from app.models.settings import AppSettingRow
 from app.models.skills import SkillCallRow, SkillMarketRow, SkillRequestRow, SkillRow
 from app.models.user import User
@@ -94,4 +95,5 @@ __all__ = [
     "NewsRow",
     "TradingDayRow",
     "User",
+    "WestockSnapshotRow",
 ]

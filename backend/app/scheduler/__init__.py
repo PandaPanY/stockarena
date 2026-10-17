@@ -52,6 +52,12 @@ async def run_watch() -> None:
     await scheduled_check()
 
 
+async def run_snapshots() -> None:
+    from app.quant.snapshots import scheduled
+
+    await scheduled()
+
+
 async def run_quant_nightly() -> None:
     from app.quant.tasks import nightly
 
@@ -85,6 +91,13 @@ def register_jobs(startup_catch_up_delay_s: int = 20) -> None:
     scheduler.add_job(run_watch, CronTrigger(hour=21, minute=15, timezone="Asia/Shanghai"),
                       id="watch_daily", name="自选股监控 21:15（Asia/Shanghai）", replace_existing=True,
                       misfire_grace_time=3600, coalesce=True, max_instances=1)
+    # westock 数据快照（一致预期、个股评分）：交易日晚上，排在自选股监控之后；23:30 补查当天缺的（未安装技能时跳过）
+    for hour, minute in ((22, 0), (23, 30)):
+        scheduler.add_job(run_snapshots, CronTrigger(day_of_week="mon-fri", hour=hour, minute=minute,
+                                                     timezone="Asia/Shanghai"),
+                          id=f"westock_snapshot_{hour:02d}{minute:02d}",
+                          name=f"westock 数据快照 {hour:02d}:{minute:02d}（Asia/Shanghai）", replace_existing=True,
+                          misfire_grace_time=1800, coalesce=True, max_instances=1)
     # 启动后补跑一次：处理停机期间错过的交易日
     scheduler.add_job(run_all_markets, DateTrigger(run_date=utcnow() + timedelta(seconds=startup_catch_up_delay_s)),
                       id="startup_catch_up", name="启动补跑（全部市场）", replace_existing=True)

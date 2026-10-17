@@ -324,6 +324,7 @@ start_run（手动或每晚 19:30）→ 全局锁（一次只跑一个研究，�
 | | `tracks`、`accounts`、`positions`、`orders`、`fills`、`cash_ledger`、`nav_snapshots`、`rounds`、`decisions`、`events` | 赛道运行与账务（现金以流水为准，可对账） |
 | | `strategy_versions`、`reflections`、`consistency_checks`、`experiments` | 自我进化、一致性评估、进化实验 |
 | 推送 | `notify_channels`、`notifications` | 推送通道（Server 酱 / PushPlus / 企业微信机器人，密钥加密）与已发送记录（按通道 + 去重键去重） |
+| 研究数据 | `westock_snapshots` | westock 一致预期与个股评分的每日快照（只有当前值的数据，每天存一份供以后研究） |
 | 其他 | `users` | 预留多用户（业务表均带 `user_id`） |
 
 关系：`quant_versions.strategy_id → quant_strategies`；`quant_strategies.follow_account_id → accounts`（跟踪账户）；`agents.quant_strategy_id → quant_strategies`（量化选手）。
@@ -337,6 +338,7 @@ start_run（手动或每晚 19:30）→ 全局锁（一次只跑一个研究，�
 | A股 15:45、16:30、18:00、20:30（港股、美股类似，各 4 次） | 运行中赛道的日终流程（幂等，多次尝试应对数据延迟），包括实时跟踪赛道 |
 | A股 19:30 | 策略工坊每晚任务：更新各股票池行情与财报 → 刷新跟踪中策略与组合的「可实盘」检查 → 依次优化开启「自动优化」的策略 |
 | A股 16:20、17:00、18:40、21:00 | 调仓提醒检查（`app/notify`）：跟踪中的组合 / 策略有下一交易日订单时推送到微信（同一天只发一次）；21:00 那次对没有完成决策的账户推送异常提醒 |
+| A股 22:00、23:30（交易日） | westock 数据快照（`app/quant/snapshots.py`）：沪深300 的一致预期与个股评分，已保存的跳过；未安装 westockdata 技能时跳过 |
 | 启动后 20 秒 | 补跑错过的日终流程 |
 | 启动时 | 把上次未完成的研究标记为中断 |
 | 手动 | 数据准备、创建初始策略库、研究、历史回放、复盘、一致性评估、进化实验（均为后台任务，界面轮询进度） |
