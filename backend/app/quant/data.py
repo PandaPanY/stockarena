@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from collections import OrderedDict
 from collections.abc import Callable
 from datetime import date, timedelta
@@ -255,35 +256,56 @@ def coverage(s: Session, universe_name: str) -> dict:
 
 _panels: OrderedDict[tuple, Panel] = OrderedDict()
 _PANEL_CACHE = 8          # 实时决策、因子研究、股票详情排名、策略页各用各的矩阵（服务器内存充足，单个 0.2～0.4 GB）
+# 同一个矩阵同时只加载一次：每天新行情入库后缓存全部失效，页面同时发出的多个请求原来会各自从头加载
+# 同一个矩阵（每份几秒到几十秒、0.2～0.4 GB），互相抢 CPU，接口一起超时。现在后到的请求等先到的加载完直接复用
+_cache_guard = threading.Lock()
+_loading: dict[tuple, threading.Lock] = {}
 
 
 def get_panel(s: Session, universe_name: str, start: date, end: date) -> Panel:
     insts, bench, _ = universe_members(universe_name)
-    symbols = [i.symbol for i in insts]
     last = s.scalar(select(func.max(DailyBarRow.date)).where(DailyBarRow.symbol == bench.symbol))
     key = (universe_name, start, end, last)
-    p = _panels.get(key)
-    if p is None:
-        idx = membership_code(universe_name)
-        membership = None
-        if idx:
-            from app.arena.deps import market_service
+    with _cache_guard:
+        p = _panels.get(key)
+        if p is not None:
+            _panels.move_to_end(key)
+            return p
+        lock = _loading.setdefault(key, threading.Lock())
+    with lock:
+        with _cache_guard:
+            p = _panels.get(key)
+        if p is None:
+            try:
+                p = _load_panel(s, universe_name, insts, bench, start, end)
+            finally:
+                with _cache_guard:
+                    _loading.pop(key, None)
+            with _cache_guard:
+                _panels[key] = p
+                while len(_panels) > _PANEL_CACHE:
+                    _panels.popitem(last=False)
+    return p
 
-            membership = market_service(s, "CN").index_membership(idx)
-            if not membership:
-                raise ValueError(f"时点股票池缺少指数 {idx} 的成分记录，请先准备数据")
-        p = load_panel(s, symbols, bench.symbol, data_start(start), end, membership)
-        delisted = {i.symbol: i.delisted for i in insts if i.delisted}
-        if delisted:
-            import numpy as np
 
-            dates64 = np.array(p.dates, dtype="datetime64[D]")
-            p.delisted = np.full(len(p.symbols), len(p.dates))
-            for j, sym in enumerate(p.symbols):
-                if sym in delisted:
-                    p.delisted[j] = int(np.searchsorted(dates64, np.datetime64(delisted[sym]), side="right"))
-        _panels[key] = p
-        while len(_panels) > _PANEL_CACHE:
-            _panels.popitem(last=False)
-    _panels.move_to_end(key)
+def _load_panel(s: Session, universe_name: str, insts: list[Instrument], bench: Instrument,
+                start: date, end: date) -> Panel:
+    idx = membership_code(universe_name)
+    membership = None
+    if idx:
+        from app.arena.deps import market_service
+
+        membership = market_service(s, "CN").index_membership(idx)
+        if not membership:
+            raise ValueError(f"时点股票池缺少指数 {idx} 的成分记录，请先准备数据")
+    p = load_panel(s, [i.symbol for i in insts], bench.symbol, data_start(start), end, membership)
+    delisted = {i.symbol: i.delisted for i in insts if i.delisted}
+    if delisted:
+        import numpy as np
+
+        dates64 = np.array(p.dates, dtype="datetime64[D]")
+        p.delisted = np.full(len(p.symbols), len(p.dates))
+        for j, sym in enumerate(p.symbols):
+            if sym in delisted:
+                p.delisted[j] = int(np.searchsorted(dates64, np.datetime64(delisted[sym]), side="right"))
     return p

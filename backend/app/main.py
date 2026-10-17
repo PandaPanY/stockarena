@@ -42,6 +42,7 @@ from app.core.crypto import SecretError
 from app.core.keycheck import check_encrypted_secrets
 from app.core.logsetup import setup_logging
 from app.core.network import apply_direct_hosts
+from app.core.slowlog import SlowRequestLog, watch_loop_lag
 from app.db.migrate import upgrade_to_head
 from app.db.session import get_engine, get_sessionmaker
 from app.market.retry import DataSourceError
@@ -79,10 +80,14 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     start_scheduler()
     if skills_enabled():
         await skill_sandbox.cleanup_sessions()
+    lag_stop = asyncio.Event()
+    lag_task = asyncio.get_running_loop().create_task(watch_loop_lag(lag_stop))     # 事件循环卡顿诊断
     logger.info("%s %s 已启动（env=%s）", settings.app_name, settings.version, settings.env)
     try:
         yield
     finally:
+        lag_stop.set()
+        await lag_task
         if intraday_task is not None:
             get_intraday_engine().stop()
             intraday_task.cancel()
@@ -104,6 +109,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(SlowRequestLog)      # 最外层：记录包括登录校验在内的完整耗时
 
     @app.exception_handler(ArenaError)
     async def _arena_error(_req: Request, exc: ArenaError) -> JSONResponse:
