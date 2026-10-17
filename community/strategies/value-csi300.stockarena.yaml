@@ -1,0 +1,103 @@
+# StockArena 策略文件：在「策略库 → 导入策略」导入。规则（spec）可以手工修改，
+# 但 provenance.tests（测试历史）请保持原样：导入后会继承，用来收紧升级门槛、计算折算可信度。
+format: stockarena-strategy/1
+name: 价值投资
+description: '买入估值低、盈利稳定的公司并长期持有：以市盈率、市净率的倒数衡量便宜程度，用 ROE 筛掉价值陷阱。
+
+  调仓频率低，不追涨杀跌。允许用质量、股息相关的因子改进，但核心必须是「便宜 + 盈利」。'
+style: value
+universe: cn_csi300_hist
+settings:
+  train_start: '2018-01-01'
+  train_end: '2022-12-31'
+  valid_start: '2023-01-01'
+  valid_end: '2024-12-31'
+  holdout_start: '2025-01-01'
+  initial_cash: 1000000
+  max_drawdown: 0.25
+  robust_keep: 0.7
+  max_turnover: 20.0
+  candidates: 3
+  rounds: 5
+  fold_win_rate: 0.5
+  p_max: 0.05
+  min_holdings: 20
+  cumulative_tests: true
+  tune: false
+  tune_budget: 30
+spec:
+  universe:
+    types:
+    - stock
+    symbols: []
+    exclude: []
+    exclude_st: true
+    min_listed_days: 250
+    min_amount: 1.0
+    industries: []
+    exclude_industries: []
+  factors:
+  - name: ep
+    params: {}
+    weight: 1.0
+    direction: high
+    neutralize: none
+  - name: bp
+    params: {}
+    weight: 1.0
+    direction: high
+    neutralize: none
+  - name: roe
+    params: {}
+    weight: 0.5
+    direction: high
+    neutralize: none
+  filters:
+  - name: ep
+    params: {}
+    op: '>'
+    value: 0.0
+  selection:
+    top_n: 30
+    buffer: 15
+    max_per_industry: null
+  weighting:
+    method: equal
+    vol_window: 60
+    max_weight: 0.05
+  rebalance:
+    every_days: 20
+    min_trade_pct: 0.01
+  timing:
+    enabled: false
+    name: ma_bias
+    params:
+      window: 60
+    op: '>'
+    value: 0.0
+    exposure_off: 0.0
+    defensive: null
+  risk:
+    exposure: 0.95
+    stop_loss: null
+    trailing_stop: null
+provenance:
+  exported_at: '2026-10-17T08:53:44+00:00'
+  platform: StockArena
+  source_url: https://github.com/PandaPanY/stockarena
+  strategy: 价值投资
+  version: 1
+  version_title: 初始策略
+  dev_sharpe: 0.2935
+  tests:
+    trials: 7
+    trial_scores:
+    - 0.2935
+    - 0.1585
+    - 0.1542
+    - 0.0955
+    - 0.0325
+    - 0.3292
+    - 0.3183
+    prior_tests: 6
+  origin: null

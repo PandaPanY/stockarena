@@ -201,8 +201,9 @@ export interface Strategy {
 }
 
 export interface StrategyOrigin {
-  /** new：新建前在对话框里试算过（只有 prior_tests、trial_scores）；没有 kind 的是另存 */
-  kind?: 'new'
+  /** new：新建前在对话框里试算过；import：从策略文件导入；没有 kind 的是另存 */
+  kind?: 'new' | 'import'
+  exported_at?: string
   strategy_id?: number
   strategy_name?: string
   version_id?: number
@@ -406,6 +407,11 @@ export const quantApi = {
   run: async (id: number) => (await http.get<ResearchRun>(`/api/quant/runs/${id}`)).data,
   cancelRun: async (id: number) => (await http.post(`/api/quant/runs/${id}/cancel`)).data,
   timeline: async (id: number) => (await http.get<Timeline>(`/api/quant/strategies/${id}/timeline`)).data,
+  /** 导出策略文件（YAML）的下载地址 */
+  exportUrl: (id: number) => `/api/quant/strategies/${id}/export`,
+  importStrategy: async (body: { text: string; name?: string | null; universe?: string | null }) =>
+    (await http.post<Strategy & { warnings: string[] }>('/api/quant/strategies/import', body, { timeout: 180000 }))
+      .data,
 }
 
 /** AI 优化时间线（只含开发期结果） */

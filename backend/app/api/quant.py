@@ -7,7 +7,7 @@ from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -497,6 +497,46 @@ def strategy_report(sid: int, download: bool = False, db: Session = Depends(get_
     name = quote(f"{st.name}-体检报告.html")
     headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{name}"} if download else {}
     return HTMLResponse(page, headers=headers)
+
+
+@router.get("/strategies/{sid}/export")
+def export_strategy(sid: int, db: Session = Depends(get_db), user_id: int = Depends(current_user_id)) -> Response:
+    """导出策略文件（YAML）：冠军规则、股票池、检验设置、来源与测试历史。公共策略也可以导出。"""
+    from urllib.parse import quote
+
+    from app.quant import exchange
+
+    st = _readable(db, sid, user_id)
+    try:
+        text = exchange.dumps(exchange.export(db, st))
+    except LabError as e:
+        raise _err(e) from None
+    return Response(text, media_type="application/x-yaml; charset=utf-8",
+                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(exchange.filename(st))}"})
+
+
+class ImportIn(BaseModel):
+    text: str = Field(min_length=1, max_length=500_000)
+    name: str | None = Field(None, max_length=64)
+    universe: str | None = None
+
+
+@router.post("/strategies/import")
+async def import_strategy(body: ImportIn, user_id: int = Depends(current_user_id)) -> dict:
+    """导入策略文件：新建自己的私有策略并回测，测试历史从文件继承。"""
+    from app.quant import exchange
+
+    def work():
+        from app.db.session import get_sessionmaker
+
+        with get_sessionmaker()() as s:
+            st, warnings = exchange.import_strategy(s, body.text, user_id, body.name, body.universe)
+            s.commit()
+            return strategy_dict(s, st, user_id) | {"warnings": warnings}
+    try:
+        return await asyncio.to_thread(work)
+    except (LabError, ValueError) as e:
+        raise _err(e) from None
 
 
 class StrategyPatch(BaseModel):

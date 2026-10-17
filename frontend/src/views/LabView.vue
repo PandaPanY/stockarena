@@ -10,6 +10,7 @@ import { providersApi, type Provider } from '@/api/arena'
 import { quantApi, RUN_STATUS, type DataStatus, type Seed, type Strategy, type TaskStatus } from '@/api/quant'
 import { metaApi, type Universe } from '@/api/arena'
 import LabCurve from '@/components/lab/LabCurve.vue'
+import ImportDialog from '@/components/lab/ImportDialog.vue'
 import NewStrategyDialog from '@/components/lab/NewStrategyDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { FactorInfo } from '@/api/quant'
@@ -27,6 +28,7 @@ const factors = ref<FactorInfo[]>([])
 const industries = ref<string[]>([])
 const universes = ref<Universe[]>([])
 const newOpen = ref(false)
+const importOpen = ref(false)
 const loading = ref(true)
 /** 模型供应商是否已读取（读取完且一个都没有时，提示「不配 AI 也能用」） */
 const providersLoaded = ref(false)
@@ -204,6 +206,7 @@ const sections = computed(() =>
       </div>
       <div class="actions">
         <el-button type="primary" :disabled="!canCreate" @click="newOpen = true">新建策略</el-button>
+        <el-button :disabled="!canCreate" @click="importOpen = true">导入策略</el-button>
         <el-button
           v-if="auth.isAdmin && !loading && missingSeeds.length"
           :disabled="!dataReady || seedTask?.running"
@@ -373,6 +376,7 @@ const sections = computed(() =>
       / 剔除日期有约一个月误差）。留出区间与实时跟踪仍是最主要的参考。所有结果均为模拟，不构成投资建议。
     </p>
 
+    <ImportDialog v-model="importOpen" @imported="(id: number) => router.push(`/lab/${id}`)" />
     <NewStrategyDialog
       v-model="newOpen"
       :providers="providers"

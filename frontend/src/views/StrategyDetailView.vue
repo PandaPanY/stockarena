@@ -307,6 +307,11 @@ async function saveNotes() {
 }
 
 /** 策略体检报告：独立 HTML 页面，在新标签页打开（页面上可另存为文件分享） */
+/** 导出策略文件：冠军规则、股票池、检验设置与测试历史，可以分享给别人导入 */
+function exportFile() {
+  if (detail.value) window.open(quantApi.exportUrl(detail.value.id), '_blank', 'noopener')
+}
+
 function openReport() {
   if (detail.value) window.open(`/api/quant/strategies/${detail.value.id}/report`, '_blank', 'noopener')
 }
@@ -330,7 +335,12 @@ function openReport() {
           </template>
           {{ detail.versions }} 个版本 · 股票池 {{ detail.universe_name }} · 基准 {{ detail.benchmark }}
         </p>
-        <p v-if="detail.origin?.kind === 'new'" class="muted">
+        <p v-if="detail.origin?.kind === 'import'" class="muted">
+          从策略文件导入（原策略「{{ detail.origin.strategy_name ?? '未知' }}」v{{
+            detail.origin.version_number ?? '?'
+          }}），继承测试历史：已检验候选 {{ detail.origin.prior_tests }} 个
+        </p>
+        <p v-else-if="detail.origin?.kind === 'new'" class="muted">
           新建前在对话框里试算过 {{ detail.origin.prior_tests }} 次，计入测试次数（升级检验与 DSR 都会把它们算进去）
         </p>
         <p v-else-if="detail.origin" class="muted">
@@ -355,6 +365,7 @@ function openReport() {
               <el-dropdown-item @click="openFork(null)">另存为新策略</el-dropdown-item>
               <el-dropdown-item @click="factorDialog = true">因子库</el-dropdown-item>
               <el-dropdown-item @click="openReport">策略体检报告</el-dropdown-item>
+              <el-dropdown-item @click="exportFile">导出策略文件</el-dropdown-item>
               <el-dropdown-item v-if="auth.isAdmin" divided @click="togglePublic">
                 {{ detail.is_public ? '取消公共（其他用户看不到）' : '设为公共（所有用户可查看、另存）' }}
               </el-dropdown-item>
@@ -367,6 +378,7 @@ function openReport() {
         <el-button type="primary" @click="openFork(null)">另存为新策略</el-button>
         <el-button @click="factorDialog = true">因子库</el-button>
         <el-button @click="openReport">策略体检报告</el-button>
+        <el-button @click="exportFile">导出策略文件</el-button>
       </div>
     </div>
     <el-alert v-if="!detail.mine" type="info" :closable="false" show-icon class="readonly">
