@@ -305,6 +305,11 @@ async function saveNotes() {
     ElMessage.error(errorMessage(err))
   }
 }
+
+/** 策略体检报告：独立 HTML 页面，在新标签页打开（页面上可另存为文件分享） */
+function openReport() {
+  if (detail.value) window.open(`/api/quant/strategies/${detail.value.id}/report`, '_blank', 'noopener')
+}
 </script>
 
 <template>
@@ -349,6 +354,7 @@ async function saveNotes() {
               <el-dropdown-item @click="openEditor(null)">手动编辑规则</el-dropdown-item>
               <el-dropdown-item @click="openFork(null)">另存为新策略</el-dropdown-item>
               <el-dropdown-item @click="factorDialog = true">因子库</el-dropdown-item>
+              <el-dropdown-item @click="openReport">策略体检报告</el-dropdown-item>
               <el-dropdown-item v-if="auth.isAdmin" divided @click="togglePublic">
                 {{ detail.is_public ? '取消公共（其他用户看不到）' : '设为公共（所有用户可查看、另存）' }}
               </el-dropdown-item>
@@ -360,6 +366,7 @@ async function saveNotes() {
       <div v-else class="actions">
         <el-button type="primary" @click="openFork(null)">另存为新策略</el-button>
         <el-button @click="factorDialog = true">因子库</el-button>
+        <el-button @click="openReport">策略体检报告</el-button>
       </div>
     </div>
     <el-alert v-if="!detail.mine" type="info" :closable="false" show-icon class="readonly">

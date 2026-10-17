@@ -7,6 +7,7 @@ from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -478,6 +479,24 @@ def strategy_timeline(sid: int, db: Session = Depends(get_db), user_id: int = De
     from app.quant import timeline
 
     return timeline.build(db, _readable(db, sid, user_id))
+
+
+@router.get("/strategies/{sid}/report", response_class=HTMLResponse)
+def strategy_report(sid: int, download: bool = False, db: Session = Depends(get_db),
+                    user_id: int = Depends(current_user_id)) -> HTMLResponse:
+    """策略体检报告（独立 HTML，可离线打开）。可实盘检查只在所有者导出时包含。"""
+    from urllib.parse import quote
+
+    from app.quant import report
+
+    st = _readable(db, sid, user_id)
+    try:
+        page = report.render(db, st, include_private=st.user_id == user_id)
+    except LabError as e:
+        raise _err(e) from None
+    name = quote(f"{st.name}-体检报告.html")
+    headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{name}"} if download else {}
+    return HTMLResponse(page, headers=headers)
 
 
 class StrategyPatch(BaseModel):
