@@ -46,6 +46,7 @@ from app.core.slowlog import SlowRequestLog, watch_loop_lag
 from app.db.migrate import upgrade_to_head
 from app.db.session import get_engine, get_sessionmaker
 from app.market.retry import DataSourceError
+from app.mcp import server as mcp_server
 from app.quant import tasks as quant_tasks
 from app.scheduler import register_jobs, shutdown_scheduler, start_scheduler
 from app.skills import sandbox as skill_sandbox
@@ -124,7 +125,7 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=502, content={"detail": f"行情数据源暂时不可用：{exc}"})
 
     for module in (auth, system, providers, agents, meta, tracks, accounts, experiments, quant, notify, skills, stocks,
-                   home, watch):
+                   home, watch, mcp_server):
         app.include_router(module.router)
 
     dist = settings.frontend_dist

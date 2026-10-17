@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     # 技能（在 Docker 容器里执行第三方代码）。不写时：已安装过技能的旧安装保持开启，新安装关闭（见 app/skills/gate.py）
     skills_enabled: bool | None = None
 
+    # MCP 服务（/api/mcp）：AI 客户端用个人 API 令牌查询和研究策略（见 docs/MCP.md）
+    mcp_enabled: bool = True
+
     log_level: str = "INFO"
 
     # 自动按收盘时间执行赛道日终流程（测试时关闭）

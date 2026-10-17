@@ -25,7 +25,7 @@ def _add_installed_skill() -> None:
 
 def test_disabled_by_default_on_fresh_install(client):
     assert gate.skills_enabled() is False
-    assert client.get("/api/auth/status").json()["features"] == {"skills": False}
+    assert client.get("/api/auth/status").json()["features"]["skills"] is False
     r = client.get("/api/skills")
     assert r.status_code == 409 and "skills_enabled" in r.json()["detail"]
     with get_sessionmaker()() as s:

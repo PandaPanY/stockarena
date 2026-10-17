@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import current_user_id, require_admin
-from app.auth import core
+from app.auth import core, tokens
 from app.auth.middleware import cookie_from_scope
 from app.core.config import get_settings
 from app.db.session import get_db
@@ -65,7 +65,8 @@ def status(request: Request, db: Session = Depends(get_db)) -> dict:
     if enabled and not configured:
         core.ensure_setup_code()            # 没有设置码时生成（例如命令行重置密码之后），并写进日志
     return {"enabled": enabled, "configured": configured, "authenticated": uid is not None,
-            "registration_open": core.registration_open(db), "features": {"skills": skills_enabled()},
+            "registration_open": core.registration_open(db),
+            "features": {"skills": skills_enabled(), "mcp": get_settings().mcp_enabled},
             "source_url": get_settings().source_url,
             "user": user_dict(user) if user else None}
 
@@ -255,4 +256,36 @@ def reset_user_password(uid: int, body: ResetPasswordIn, _: int = Depends(requir
     user.session_gen += 1
     db.commit()
     core.invalidate(user.id)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- 个人 API 令牌（MCP 服务用）
+
+
+class TokenIn(BaseModel):
+    name: str = Field(min_length=1, max_length=64)
+    can_write: bool = False
+
+
+@router.get("/tokens")
+def list_tokens(user_id: int = Depends(current_user_id), db: Session = Depends(get_db)) -> list[dict]:
+    return tokens.list_for(db, user_id)
+
+
+@router.post("/tokens")
+def create_token(body: TokenIn, user_id: int = Depends(current_user_id), db: Session = Depends(get_db)) -> dict:
+    """新建令牌。返回的 token 原文只显示这一次。"""
+    try:
+        row, raw = tokens.create(db, user_id, body.name, body.can_write)
+    except tokens.TokenError as e:
+        raise HTTPException(400, str(e)) from None
+    db.commit()
+    return tokens.token_dict(row) | {"token": raw}
+
+
+@router.delete("/tokens/{tid}")
+def revoke_token(tid: int, user_id: int = Depends(current_user_id), db: Session = Depends(get_db)) -> dict:
+    if not tokens.revoke(db, user_id, tid):
+        raise HTTPException(404, "令牌不存在")
+    db.commit()
     return {"ok": True}

@@ -13,9 +13,9 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from app.auth import core
 from app.core.config import get_settings
 
-# 不需要登录的接口：登录状态、首次设置密码、注册、登录、退出
+# 不需要登录的接口：登录状态、首次设置密码、注册、登录、退出；MCP 服务自己校验 API 令牌（app/mcp/server.py）
 PUBLIC_PATHS = frozenset({"/api/auth/status", "/api/auth/setup", "/api/auth/register", "/api/auth/login",
-                          "/api/auth/logout"})
+                          "/api/auth/logout", "/api/mcp"})
 DOC_PATHS = frozenset({"/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"})
 
 

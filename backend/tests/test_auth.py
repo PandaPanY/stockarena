@@ -76,7 +76,7 @@ def test_setup_login_flow(auth_client: TestClient):
     c = auth_client
     st = c.get("/api/auth/status").json()
     assert st == {"enabled": True, "configured": False, "authenticated": False, "registration_open": False,
-                  "features": {"skills": False}, "source_url": get_settings().source_url, "user": None}
+                  "features": {"skills": False, "mcp": True}, "source_url": get_settings().source_url, "user": None}
     r = c.get("/api/system/health")
     assert r.status_code == 401 and r.json()["code"] == "setup_required"
 

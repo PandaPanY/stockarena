@@ -263,7 +263,8 @@ start_run（手动或每晚 19:30）→ 全局锁（一次只跑一个研究，�
 - 首次设置：管理员（id 1）没有密码时，`POST /api/auth/setup` 设置密码，必须带**首次设置码**（2026-10-13）。设置码在启动时生成，写进日志和 `data/setup-code.txt`（权限 600），用过即删；错误计入登录限速。
 - 注册：`POST /api/auth/register` 只在管理员打开「开放注册」时可用（`app_settings` 的 `auth.registration`；新安装默认关闭，迁移 `a8c1d5f7e3b9` 让已有安装保持开放），同一 IP 每小时最多 5 个。
 - 登录凭证：`用户ID.代数.到期时间.签名`，HMAC-SHA256 签名密钥由 `data/secret.key` 派生；放在 HttpOnly、SameSite=Lax 的 Cookie `sa_session` 中，有效 30 天。修改密码、退出所有设备、命令行重置时 `users.session_gen` 加 1，旧凭证全部失效。
-- `AuthMiddleware`（纯 ASGI）拦截 `/api/*`、`/ws/*` 与接口文档，只放行 `/api/auth/status|setup|login|logout`；未登录返回 401 和 `code`（`login_required` / `setup_required`），WebSocket 直接关闭（4401）。页面静态文件不拦截，前端路由守卫与 axios 拦截器负责跳转登录页。中间件查询密码状态带 5 秒缓存。
+- `AuthMiddleware`（纯 ASGI）拦截 `/api/*`、`/ws/*` 与接口文档，只放行 `/api/auth/status|setup|register|login|logout` 与 `/api/mcp`（MCP 服务自己校验 API 令牌，见下）；未登录返回 401 和 `code`（`login_required` / `setup_required`），WebSocket 直接关闭（4401）。页面静态文件不拦截，前端路由守卫与 axios 拦截器负责跳转登录页。中间件查询密码状态带 5 秒缓存。
+- 个人 API 令牌与 MCP 服务（2026-10-17）：`api_tokens` 只存 sha256 哈希，令牌只在 `/api/mcp` 有效。`app/mcp/server.py` 处理 JSON-RPC（Streamable HTTP 的无状态子集），`app/mcp/tools.py` 用 `httpx.ASGITransport` 以令牌所属用户的身份在进程内转调平台接口，权限与网页一致，并去掉留出期结果。见 [MCP.md](MCP.md)。
 - 登录限速：按来源 IP，15 分钟内失败 5 次后锁定到最早一次失败满 15 分钟（内存中，重启清零）。
 - 忘记密码：`uv run python -m app.auth reset-password` 清除管理员密码、使其所有凭证失效，并生成新的首次设置码。
 - 主密钥：`data/secret.key` 格式不对时启动即报错；启动时检查已保存的密钥能否解密（`core/keycheck.py`），解密失败的条目在页面上标出，调用时返回 400 和明确提示。
@@ -325,7 +326,8 @@ start_run（手动或每晚 19:30）→ 全局锁（一次只跑一个研究，�
 | | `strategy_versions`、`reflections`、`consistency_checks`、`experiments` | 自我进化、一致性评估、进化实验 |
 | 推送 | `notify_channels`、`notifications` | 推送通道（Server 酱 / PushPlus / 企业微信机器人，密钥加密）与已发送记录（按通道 + 去重键去重） |
 | 研究数据 | `westock_snapshots` | westock 一致预期与个股评分的每日快照（只有当前值的数据，每天存一份供以后研究） |
-| 其他 | `users` | 预留多用户（业务表均带 `user_id`） |
+| 其他 | `users` | 用户（业务表均带 `user_id`） |
+| 其他 | `api_tokens` | 个人 API 令牌（MCP 服务用，只存哈希） |
 
 关系：`quant_versions.strategy_id → quant_strategies`；`quant_strategies.follow_account_id → accounts`（跟踪账户）；`agents.quant_strategy_id → quant_strategies`（量化选手）。
 

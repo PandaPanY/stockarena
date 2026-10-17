@@ -44,6 +44,9 @@ StockArena 是一个自部署的 A 股量化研究平台：AI（云端或本地�
 | 每日信号与实时跟踪 | 按最新收盘计算目标持仓与调仓清单，模拟账户每天自动交易并与基准对照 |
 | AI 交易复核（可选） | 规则账户与 AI 复核账户并行，AI 只能否决新买入，实时比较它是加分还是减分 |
 | 自选股监控（可选） | AI 每晚看公告、新闻和异常波动，重要的推送提醒 |
+| 优化时间线与体检报告 | AI 每轮改了哪些规则、检验结果、是否采纳；一页汇总表现、过拟合检验和可实盘检查的独立 HTML 报告 |
+| 策略导入导出 | 策略存成一个 YAML 文件分享给别人；导入时按自己的数据重新回测，测试历史随文件继承 |
+| MCP 接入 | Claude Code、Cursor 等 AI 客户端用个人令牌查询策略、试算、提交新版本（只提供开发期结果） |
 | 消息推送 | Server 酱、PushPlus、企业微信群机器人 |
 | 多用户 | 数据隔离，AI 模型和交易成本各自配置；开放注册由管理员开关 |
 | AI 对比（附带） | 多个 AI 在 A 股 / 港股 / 美股赛道同台模拟交易，含决策回放、自我进化、做空与杠杆 |
@@ -73,6 +76,7 @@ docker compose logs | grep 设置码
 | [部署指南](docs/DEPLOY.md) | Docker / 直接运行、反向代理、备份恢复、升级 |
 | [配置参考](docs/CONFIG.md) | 每个配置项和环境变量 |
 | [数据源说明](docs/DATA_SOURCES.md) | 每个数据源抓什么、用在哪里、失效时怎么排查 |
+| [MCP 接入](docs/MCP.md) | 用 Claude Code、Cursor 等 AI 客户端连接平台 |
 | [技能说明](docs/SKILLS.md) | 可选的技能功能：运行要求、隔离方式、风险 |
 | [功能说明](docs/FEATURES.md) | 功能细节与实现取舍 |
 | [架构](docs/ARCHITECTURE.md) | 程序结构、数据表、定时任务 |
@@ -116,6 +120,9 @@ evaluation pipeline keeps it honest.
   live paper-trading accounts, daily signals, a readiness checklist before real trading, and reconciliation against your own broker fills.
 - Works with any OpenAI-compatible endpoint (DeepSeek, Qwen, Kimi, Ollama, LM Studio, vLLM, …), Anthropic Claude and Google Gemini.
   Usable without any AI model for backtesting, portfolios and signals.
+- Strategy health reports (standalone HTML), an optimization timeline, YAML strategy import/export that carries the testing history,
+  and a built-in **MCP server** so Claude Code, Cursor and other MCP clients can research strategies with a personal token (development-period
+  results only — the holdout stays hidden from automated agents).
 - Multi-user with data isolation; one-command Docker deployment.
 
 Data is fetched at runtime by your own deployment from public third-party sources (Sina, Tencent, Eastmoney, CNINFO, CSI, Baostock, …);

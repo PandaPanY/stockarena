@@ -45,7 +45,7 @@ from app.models.quant import (
 from app.models.research import WestockSnapshotRow
 from app.models.settings import AppSettingRow
 from app.models.skills import SkillCallRow, SkillMarketRow, SkillRequestRow, SkillRow
-from app.models.user import User
+from app.models.user import ApiToken, User
 from app.models.watch import WatchEventRow, WatchItemRow
 
 __all__ = [
@@ -94,6 +94,7 @@ __all__ = [
     "MinuteBarRow",
     "NewsRow",
     "TradingDayRow",
+    "ApiToken",
     "User",
     "WestockSnapshotRow",
 ]

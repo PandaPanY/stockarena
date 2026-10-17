@@ -18,10 +18,21 @@ export interface AuthStatus {
   /** 是否开放注册（管理员在「用户管理」里设置） */
   registration_open: boolean
   /** 可选功能是否开启（技能默认关闭，见 docs/SKILLS.md） */
-  features: { skills: boolean }
+  features: { skills: boolean; mcp?: boolean }
   /** 源代码地址（AGPL-3.0：页面底部提供源代码链接） */
   source_url?: string
   user: AuthUser | null
+}
+
+/** 个人 API 令牌（MCP 服务用）；token 原文只在创建时返回一次 */
+export interface ApiToken {
+  id: number
+  name: string
+  prefix: string
+  can_write: boolean
+  created_at: string
+  last_used_at: string | null
+  token?: string
 }
 
 export const authApi = {
@@ -46,4 +57,8 @@ export const authApi = {
     (await http.put<{ open: boolean }>('/api/auth/registration', { open })).data,
   resetPassword: async (id: number, new_password: string) =>
     (await http.post(`/api/auth/users/${id}/password`, { new_password })).data,
+  tokens: async () => (await http.get<ApiToken[]>('/api/auth/tokens')).data,
+  createToken: async (name: string, can_write: boolean) =>
+    (await http.post<ApiToken>('/api/auth/tokens', { name, can_write })).data,
+  revokeToken: async (id: number) => (await http.delete(`/api/auth/tokens/${id}`)).data,
 }
