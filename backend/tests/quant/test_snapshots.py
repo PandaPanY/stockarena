@@ -26,6 +26,8 @@ CONSENSUS = """
 | 2027 | 71.06 | 18660658.07 | 8883401.88 | 18.70 | 4.38 | 8.90 | 5.22 | 6.13 | 0 |
 """
 
+LIMITED = "请求过于频繁，请稍后再试\n"
+
 _CELLS = ["81.33 (周↑+7.19 月↑+25.10 季↑+81.33)", "81.86 (周↑+2.60 月↑+4.98 季↑+81.86)",
           "85.63 (周↓-1.22 月↓-0.70 季↑+85.63)", "82.37 (周↑+0.19 月↓-0.29 季↑+82.37)",
           "85.44 (周↑+22.02 月↑+25.46 季↑+85.44)"]
@@ -51,6 +53,7 @@ def test_classify():
     assert snapshots.classify("score", "", 0)[0] == "error"
     assert snapshots.classify("score", SCORE, 1)[0] == "error"
     assert snapshots.classify("consensus", "暂无数据", 0)[0] == "empty"
+    assert snapshots.classify("score", "请求过于频繁，请稍后再试", 0)[0] == "limited"
 
 
 @pytest.fixture
@@ -62,12 +65,16 @@ def westock(db, monkeypatch):
         s.add(SkillRow(user_id=1, name="westockdata", source_type="upload", status="installed", enabled=True))
         s.commit()
     monkeypatch.setattr(service, "_token", lambda row: "tok")
+    monkeypatch.setattr(snapshots, "MIN_INTERVAL_S", 0)
+    monkeypatch.setattr(snapshots, "LIMIT_BACKOFF_S", (0, 0))
     calls: list[list[str]] = []
     replies: dict[str, str] = {"consensus": CONSENSUS, "score": SCORE}
 
     async def fake_run(skill_id, token, argv, timeout=60):
         calls.append(argv)
         out = replies[argv[1]]
+        if isinstance(out, list):                  # 依次返回（模拟先被限流、后成功）
+            out = out.pop(0) if len(out) > 1 else out[0]
         return RunResult(0, out, 0.1)
 
     async def fake_stop(skill_id):
@@ -106,3 +113,20 @@ async def test_run_stops_after_consecutive_failures(westock):
 async def test_run_skips_without_skill(db):
     stats = await snapshots.run(date(2026, 10, 19), symbols=["600519.SH"])
     assert stats.saved == 0 and "跳过" in stats.stopped
+
+
+async def test_rate_limited_retries_then_saves(westock):
+    calls, replies = westock
+    replies["score"] = [LIMITED, SCORE]
+    stats = await snapshots.run(date(2026, 10, 19), symbols=["600519.SH"], kinds=("score",))
+    assert stats.saved == 1 and stats.limited == 1 and stats.failed == 0
+    assert calls.count(["westock", "score", "sh600519"]) == 2
+
+
+async def test_persistent_rate_limit_not_saved(westock):
+    _, replies = westock
+    replies["score"] = LIMITED
+    stats = await snapshots.run(date(2026, 10, 19), symbols=["600519.SH"], kinds=("score",))
+    assert stats.saved == 0 and stats.failed == 1 and stats.limited == 2
+    with get_sessionmaker()() as s:
+        assert s.scalars(select(WestockSnapshotRow)).first() is None

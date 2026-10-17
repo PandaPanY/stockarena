@@ -3,7 +3,9 @@
 
 - 只在开启技能功能、且已安装并启用 westockdata 技能时运行；用技能所有者（管理员）的授权；
 - 在批量专用的常驻容器里逐只查询（复用容器，每次约 1 秒）；批量查询多只实测会握手超时，不使用；
-- 与 AI 复核共用 westock 额度：失败太多（连续 10 次，或累计 30 次且超过两成）就停止当天的查询，留给复核；
+- 与 AI 复核共用 westock 授权：westock 按请求频率限流（「请求过于频繁」），每次查询之间至少间隔 MIN_INTERVAL_S 秒；
+  被限流时等一会儿重试（30 秒、60 秒），仍被限流就算失败；失败太多（连续 10 次，或累计 30 次且超过两成）
+  就停止当天的查询；
 - 幂等：同一天已保存的不再查询，晚些时候的补跑只查缺的。
 
 命令行（在 backend/ 目录）：
@@ -36,8 +38,11 @@ TIMEOUT_S = 60
 MAX_CONSECUTIVE_FAILS = 10
 MAX_FAILS, MAX_FAIL_RATE = 30, 0.2
 COMMIT_EVERY = 20
+MIN_INTERVAL_S = 1.0                    # 两次查询之间至少间隔（westock 按频率限流）
+LIMIT_BACKOFF_S = (30, 60)              # 被限流后的等待时间，依次重试
 
 _EMPTY_MARKERS = ("暂无数据", "无数据", "未找到")
+_LIMIT_MARKERS = ("请求过于频繁", "稍后再试", "限流", "too many requests")
 
 
 # ---------------------------------------------------------------- 解析
@@ -105,8 +110,10 @@ PARSERS = {"consensus": parse_consensus, "score": parse_score}
 
 
 def classify(kind: str, output: str, exit_code: int) -> tuple[str, dict]:
-    """返回（状态, 解析结果）：ok 有数据 / empty 暂无数据 / error 失败（不保存，下次补）。"""
+    """返回（状态, 解析结果）：ok 有数据 / empty 暂无数据 / limited 被限流 / error 失败（后两种不保存，下次补）。"""
     text = output.strip()
+    if any(mk in text[:200].lower() for mk in _LIMIT_MARKERS):
+        return "limited", {}
     if exit_code != 0 or "失败" in text[:200] or not text:
         return "error", {}
     if any(mk in text for mk in _EMPTY_MARKERS) and "|" not in text:
@@ -127,13 +134,15 @@ class RunStats:
     saved: int = 0
     empty: int = 0
     failed: int = 0
+    limited: int = 0
     skipped: int = 0
     stopped: str = ""
     errors: list[str] = field(default_factory=list)
 
     def message(self) -> str:
         msg = (f"westock 快照 {self.as_of}：保存 {self.saved} 条（其中暂无数据 {self.empty} 条），"
-               f"失败 {self.failed} 条，已有 {self.skipped} 条")
+               f"失败 {self.failed} 条，已有 {self.skipped} 条"
+               + (f"，被限流 {self.limited} 次" if self.limited else ""))
         return msg + (f"；{self.stopped}" if self.stopped else "")
 
 
@@ -189,13 +198,14 @@ async def run(as_of: date | None = None, symbols: list[str] | None = None,
     consecutive = 0
     try:
         for sym, kind in todo:
-            try:
-                res = await sandbox.run_batch(row.id, token, ["westock", kind, _westock_code(sym)], timeout=TIMEOUT_S)
-                status, data = classify(kind, res.output, res.exit_code)
-                output = res.output
-            except Exception as e:  # noqa: BLE001 - 单只失败不影响其他
-                status, data, output = "error", {}, f"{type(e).__name__}: {e}"
-            if status == "error":
+            for wait in (*LIMIT_BACKOFF_S, None):
+                await asyncio.sleep(MIN_INTERVAL_S)
+                status, data, output = await _query(row.id, token, kind, sym)
+                if status != "limited" or wait is None:
+                    break
+                stats.limited += 1
+                await asyncio.sleep(wait)
+            if status in ("error", "limited"):
                 stats.failed += 1
                 consecutive += 1
                 if len(stats.errors) < 5:
@@ -218,6 +228,17 @@ async def run(as_of: date | None = None, symbols: list[str] | None = None,
     level = logging.WARNING if stats.stopped or stats.failed else logging.INFO
     logger.log(level, "%s%s", stats.message(), ("；例：" + " | ".join(stats.errors[:2])) if stats.errors else "")
     return stats
+
+
+async def _query(skill_id: int, token: str, kind: str, symbol: str) -> tuple[str, dict, str]:
+    from app.skills import sandbox
+
+    try:
+        res = await sandbox.run_batch(skill_id, token, ["westock", kind, _westock_code(symbol)], timeout=TIMEOUT_S)
+    except Exception as e:  # noqa: BLE001 - 单只失败不影响其他
+        return "error", {}, f"{type(e).__name__}: {e}"
+    status, data = classify(kind, res.output, res.exit_code)
+    return status, data, res.output
 
 
 def _flush(pending: list[WestockSnapshotRow]) -> None:
