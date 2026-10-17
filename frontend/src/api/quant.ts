@@ -405,6 +405,71 @@ export const quantApi = {
     (await http.post<ResearchRun>(`/api/quant/strategies/${id}/research`, { rounds })).data,
   run: async (id: number) => (await http.get<ResearchRun>(`/api/quant/runs/${id}`)).data,
   cancelRun: async (id: number) => (await http.post(`/api/quant/runs/${id}/cancel`)).data,
+  timeline: async (id: number) => (await http.get<Timeline>(`/api/quant/strategies/${id}/timeline`)).data,
+}
+
+/** AI 优化时间线（只含开发期结果） */
+export interface TimelineMetrics {
+  sharpe?: number | null
+  annualized_return?: number | null
+  max_drawdown?: number | null
+  turnover?: number | null
+  p?: number | null
+  n_tests?: number | null
+  excess_annual?: number | null
+  year_wins?: string | null
+}
+
+export interface TimelineCandidate {
+  number?: number
+  title: string
+  source?: string
+  status: string
+  /** 升级为冠军 / 未采纳 / 与已试过的版本相同，跳过 … */
+  outcome: string
+  rationale?: string
+  decision?: string
+  parent_number?: number | null
+  /** 与当时冠军相比：去掉的规则、加上的规则 */
+  diff?: { removed: string[]; added: string[] }
+  metrics?: TimelineMetrics
+  parent_sharpe?: number | null
+  created_at?: string
+}
+
+export interface TimelineEvent {
+  type: 'round' | 'manual' | 'version'
+  at: string
+  run_id?: number
+  trigger?: string
+  round?: number
+  status?: string
+  analysis?: string
+  lessons?: string[]
+  error?: string
+  candidates: TimelineCandidate[]
+  promoted?: number | null
+}
+
+export interface Timeline {
+  start: {
+    number: number | null
+    title: string
+    rules: string[]
+    metrics: TimelineMetrics
+    created_at: string | null
+    forked_from: { strategy_id: number; strategy_name: string; version_number: number; prior_tests: number } | null
+    trials_before_create: number | null
+  }
+  events: TimelineEvent[]
+  summary: {
+    versions: number
+    ai_candidates: number
+    ai_promoted: number
+    manual: number
+    rounds: number
+    champion: number | null
+  }
 }
 
 export const STATUS_TEXT: Record<VersionStatus, string> = {

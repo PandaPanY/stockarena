@@ -26,6 +26,7 @@ import type { PreviewResult } from '@/api/quant'
 import ReadinessPanel from '@/components/lab/ReadinessPanel.vue'
 import { READY_TYPE } from '@/utils/readiness'
 import TrackingPanel from '@/components/lab/TrackingPanel.vue'
+import TimelinePanel from '@/components/lab/TimelinePanel.vue'
 import TradeDetails from '@/components/lab/TradeDetails.vue'
 import VersionReport from '@/components/lab/VersionReport.vue'
 import { formatDateTime, formatPercent } from '@/utils/format'
@@ -390,6 +391,10 @@ async function saveNotes() {
           </el-tag>
         </template>
         <ReadinessPanel kind="strategy" :id="detail.id" />
+      </el-tab-pane>
+
+      <el-tab-pane label="优化时间线" name="timeline" lazy>
+        <TimelinePanel :strategy-id="detail.id" />
       </el-tab-pane>
 
       <el-tab-pane :label="`版本历史（${detail.version_list.length}）`" name="versions">

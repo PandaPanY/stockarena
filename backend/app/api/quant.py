@@ -472,6 +472,14 @@ def get_strategy(sid: int, db: Session = Depends(get_db), user_id: int = Depends
     }
 
 
+@router.get("/strategies/{sid}/timeline")
+def strategy_timeline(sid: int, db: Session = Depends(get_db), user_id: int = Depends(current_user_id)) -> dict:
+    """AI 优化时间线：每一轮的诊断、每个候选改了什么、检验结果与是否采纳（只含开发期）。"""
+    from app.quant import timeline
+
+    return timeline.build(db, _readable(db, sid, user_id))
+
+
 class StrategyPatch(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=64)
     description: str | None = None
