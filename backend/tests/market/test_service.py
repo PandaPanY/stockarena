@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -72,6 +73,21 @@ def test_update_bars_incremental(session):
     bars = svc.get_bars(INST.symbol, date(2026, 7, 1), date(2026, 7, 31))
     assert [b.close for b in bars] == [Decimal("37.94"), Decimal("37.55"), Decimal("36.55")]
     assert svc.get_instrument(INST.symbol).price_limit_pct == Decimal("0.10")
+
+
+def test_update_bars_refreshes_recent_etf_days(session):
+    """ETF 有新数据要拉时顺带重拉最近一周（覆盖用腾讯补的日线）；没有新数据时不请求。"""
+    etf = Instrument("511010.SH", "CN", "国债ETF", "etf", "fund", price_limit_pct=Decimal("0.10"))
+    provider = FakeProvider()
+    provider.bars = [dataclasses.replace(b, symbol=etf.symbol) for b in provider.bars]
+    svc = MarketDataService(session, provider)
+    svc.upsert_instruments([etf])
+    svc.update_bars([etf], until=date(2026, 7, 9), history_start=date(2026, 7, 1))
+    svc.update_bars([etf], until=date(2026, 7, 10), history_start=date(2026, 7, 1))
+    assert provider.calls[-1] == (date(2026, 7, 2), date(2026, 7, 10))        # 7-9 往前 7 天
+    assert svc.update_bars([etf], until=date(2026, 7, 10), history_start=date(2026, 7, 1)) == {
+        etf.symbol: "up-to-date"}
+    assert len(provider.calls) == 2
 
 
 def test_history_frame_forward_adjusted(session):

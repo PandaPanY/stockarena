@@ -121,3 +121,34 @@ def test_refetch_bars_overwrites_cached_factors(tmp_path, monkeypatch):
         bar = svc.get_bars(NDX.symbol, date(2022, 1, 12), date(2022, 1, 12))[0]
         assert bar.adj_factor == 5 and bar.prev_close == Decimal("1.038")
     engine.dispose()
+
+
+class _FakeAkTx(_FakeAk):
+    """新浪 ETF 历史只到前一天；腾讯日线有最新交易日。"""
+
+    def __init__(self, raw, tx):
+        super().__init__(raw)
+        self.tx, self.tx_calls = tx, []
+
+    def stock_zh_a_hist_tx(self, symbol, start_date, end_date, adjust=""):
+        self.tx_calls.append((symbol, start_date, end_date))
+        return self.tx
+
+
+def test_fund_bars_patch_latest_days_from_tencent(monkeypatch):
+    raw = _raw([5.10, 5.192, 1.015, 1.02])                   # 2022-01-10 ～ 01-13，第三天 1 拆 5
+    tx = _raw([1.02, 1.03, 1.04], start="2022-01-13")        # 腾讯：01-13（重叠）、01-14、01-17
+    fake = _FakeAkTx(raw, tx)
+    monkeypatch.setattr(akshare_cn, "_ak", lambda: fake)
+    bars = AkshareCNProvider()._fund_bars(NDX, date(2022, 1, 1), date(2022, 1, 17))
+    assert [b.date for b in bars][-3:] == [date(2022, 1, 13), date(2022, 1, 14), date(2022, 1, 17)]
+    assert fake.tx_calls == [("sh513100", "20220114", "20220117")]
+    assert bars[-1].close == Decimal("1.04") and bars[-1].adj_factor == Decimal("5")   # 沿用折算后的因子
+    assert bars[-1].prev_close == Decimal("1.03")
+
+
+def test_fund_bars_no_tencent_for_old_gaps(monkeypatch):
+    fake = _FakeAkTx(_raw([1.0, 1.01]), _raw([1.02]))
+    monkeypatch.setattr(akshare_cn, "_ak", lambda: fake)
+    AkshareCNProvider()._fund_bars(NDX, date(2022, 1, 1), date(2022, 12, 31))    # 回补历史：缺口很长，不补
+    assert fake.tx_calls == []

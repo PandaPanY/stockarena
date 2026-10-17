@@ -29,6 +29,8 @@ logger = logging.getLogger(__name__)
 
 # 日历最后一天距今少于该天数时刷新
 _CALENDAR_MIN_AHEAD_DAYS = 14
+# ETF 每次拉新数据时重拉最近这么多天（覆盖腾讯补的日线，见 update_bars）
+ETF_REFRESH_DAYS = 7
 
 
 class MarketDataProvider(Protocol):
@@ -168,6 +170,10 @@ class MarketDataService:
             if start > until:
                 result[inst.symbol] = "up-to-date"
                 continue
+            if last and inst.type in ("etf", "lof"):
+                # 新浪 ETF 历史比实际晚一天，最近的日线可能是用腾讯补的（见 akshare_cn._fund_recent_tx）；
+                # 有新数据要拉时顺带重拉最近一周，用新浪的正式数据（含分红推算的复权因子）覆盖
+                start = min(start, last - timedelta(days=ETF_REFRESH_DAYS))
             try:
                 bars = self._track(f"{self.market}.daily_bars",
                                    lambda inst=inst, start=start: self.provider.daily_bars(inst, start, until))

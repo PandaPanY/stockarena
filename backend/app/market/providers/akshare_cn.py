@@ -25,6 +25,8 @@ _misc_limiter = RateLimiter(0.3)
 
 # 计算首日前收盘价需要更早的数据：多取一段，覆盖长假
 _LOOKBACK_DAYS = 20
+# 新浪 ETF 历史接口比实际晚一天，最近这么多天以内的缺口用腾讯日线补（覆盖长假后的第一个交易日）
+_TX_PATCH_DAYS = 14
 
 
 def _ak():
@@ -145,8 +147,35 @@ class AkshareCNProvider:
         raw["date"] = pd.to_datetime(raw["date"])
         return raw.sort_values("date").reset_index(drop=True)
 
+    def _fund_recent_tx(self, inst: Instrument, raw: pd.DataFrame, end: date) -> pd.DataFrame:
+        """新浪 ETF 历史接口当天收盘后不更新（实测要到下一个交易日下午才有前一天的数据），
+        缺最近几个交易日时用腾讯日线补上：两者都是不复权价，数值一致（成交量取整到百股）。
+
+        只补最近 _TX_PATCH_DAYS 天以内的缺口；补进来的行与新浪历史一起推算复权因子，口径不变。
+        """
+        last = raw["date"].max().date() if len(raw) else None
+        if last is None or last >= end or (end - last).days > _TX_PATCH_DAYS:
+            return raw
+        try:
+            tx = call_with_retry(
+                lambda: _ak().stock_zh_a_hist_tx(symbol=to_sina(inst.symbol), start_date=_ymd(last + timedelta(days=1)),
+                                                 end_date=_ymd(end), adjust=""),
+                name=f"tx.etf_daily.{inst.symbol}", limiter=_tx_limiter)
+        except Exception:  # noqa: BLE001 - 补不上时沿用新浪数据，下一轮再试
+            logger.warning("腾讯 ETF 日线补充失败：%s", inst.symbol, exc_info=True)
+            return raw
+        if tx is None or tx.empty:
+            return raw
+        tx = tx.copy()
+        tx["date"] = pd.to_datetime(tx["date"])
+        tx = tx[(tx["date"] > pd.Timestamp(last)) & (tx["date"] <= pd.Timestamp(end))]
+        if tx.empty:
+            return raw
+        cols = ["date", "open", "high", "low", "close", "volume", "amount"]
+        return pd.concat([raw, tx[cols]], ignore_index=True).sort_values("date").reset_index(drop=True)
+
     def _fund_bars(self, inst: Instrument, start: date, end: date) -> list[DailyBar]:
-        raw = self._fund_raw(inst)
+        raw = self._fund_recent_tx(inst, self._fund_raw(inst), end)
         # 由分红与份额折算推算复权因子（需要完整历史，保证每次计算的因子基准一致）
         actions = fund_actions(inst, raw, self._fund_dividends(inst))
         factor_rows = [(pd.Timestamp("1900-01-01"), Decimal("1"))]
