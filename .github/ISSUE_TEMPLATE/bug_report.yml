@@ -36,7 +36,7 @@ body:
     id: version
     attributes:
       label: 版本或提交
-      placeholder: v0.1.0 或 git log --oneline -1 的结果
+      placeholder: v0.2.0 或 git log --oneline -1 的结果
   - type: textarea
     id: logs
     attributes:

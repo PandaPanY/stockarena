@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "StockArena"
-    version: str = "0.1.0"
+    version: str = "0.2.0"
     env: str = "dev"
 
     host: str = "127.0.0.1"
