@@ -114,17 +114,47 @@ async def nightly() -> None:
         logger.exception("数据质量扫描失败")
     await asyncio.to_thread(refresh_readiness)
     await asyncio.to_thread(warm_caches)
-    run_ids = []
+    run_ids, paused = [], []
     with get_sessionmaker()() as s:
         for st in s.scalars(select(QuantStrategyRow).where(QuantStrategyRow.status == "active",
                                                           QuantStrategyRow.auto_optimize.is_(True))):
+            if pause_if_hopeless(s, st):
+                paused.append((st.name, st.id, st.user_id, st.auto_pause))
+                continue
             try:
                 run_ids.append(research.start_run(s, st, trigger="schedule").id)
             except service.LabError as e:
                 logger.info("策略 %s 跳过自动优化：%s", st.name, e)
         s.commit()
+    for name, sid, owner, info in paused:
+        try:
+            from app.notify import service as notify
+
+            msg = notify.auto_pause_message(name, sid, info)
+            msg.user_id = owner
+            notify.deliver(msg)
+        except Exception:
+            logger.exception("自动优化暂停提醒发送失败：%s", name)
     for rid in run_ids:
         await research.run_research(rid)
+
+
+def pause_if_hopeless(s, st: QuantStrategyRow) -> bool:
+    """升级门槛已经严到几乎不可能升级（累计检验次数校正后 p 门槛低于 AUTO_PAUSE_P）时暂停每晚自动优化。
+
+    用户看过原因后重新打开的（auto_pause.resumed）不再暂停；换了冠军后检验次数重新开始、记录清空。
+    """
+    if (st.auto_pause or {}).get("resumed"):
+        return False
+    outlook = service.upgrade_outlook(s, st)
+    if not outlook["hopeless"]:
+        return False
+    st.auto_optimize = False
+    st.auto_pause = {"at": utcnow().isoformat(timespec="seconds"), "tests": outlook["tests"],
+                     "p_need": outlook["p_need"], "resumed": False}
+    logger.info("策略 %s 暂停每晚自动优化：已检验 %d 个候选，下一轮需 p ≤ %.2g",
+                st.name, outlook["tests"], outlook["p_need"])
+    return True
 
 
 _warm_lock = threading.Lock()

@@ -353,6 +353,24 @@ def walk_forward(series: dict[int, dict[str, float]], seed: int, min_months: int
             "avg_total": total("avg_return")}
 
 
+def trial_sharpe_var(scores: list[float]) -> float | None:
+    """各次尝试的年化夏普的方差（DSR 用），对极端值稳健。
+
+    几乎空仓的候选（波动只有零点几）扣掉无风险利率后夏普可以低到 −4，少数几个就能把方差放大几十倍，
+    使「试 n 次碰巧能得到的最好夏普」虚高、DSR 被压成 0（2026-10-18 ETF 轮动：93 次尝试里 5 个空仓候选，
+    方差 0.83，正常的策略在 0.01～0.04）。做法：先按中位数 ± 5 倍稳健标准差（1.4826 × MAD）截尾再算样本方差；
+    这些尝试照样计入次数。
+    """
+    xs = np.asarray([x for x in scores if x is not None and math.isfinite(x)], dtype=float)
+    if len(xs) < 2:
+        return None
+    med = float(np.median(xs))
+    sigma = 1.4826 * float(np.median(np.abs(xs - med)))
+    if sigma > 0:
+        xs = np.clip(xs, med - 5 * sigma, med + 5 * sigma)
+    return float(np.var(xs, ddof=1))
+
+
 def deflated_sharpe(rep: dict, n_trials: int, sharpe_var: float | None) -> float | None:
     """按尝试次数折算的夏普（Bailey & López de Prado）：扣除「试了 n 次挑最好」的影响后，真实夏普大于 0 的概率。
 
@@ -373,6 +391,24 @@ def deflated_sharpe(rep: dict, n_trials: int, sharpe_var: float | None) -> float
     if denom <= 0:
         return None
     return round(NormalDist().cdf((sr - sr0) * math.sqrt(days - 1) / math.sqrt(denom)), 4)
+
+
+# 升级检验未通过的原因（与 check_gates 的文字对应），用于汇总「为什么一直没有升级」
+REJECT_REASONS = (
+    ("sharpe", "开发期夏普不高于冠军", ("不高于冠军",)),
+    ("significance", "月度超额不显著", ("不显著",)),
+    ("years", "跑赢冠军的年份不够", ("改进不够一致",)),
+    ("drawdown", "回撤超过上限", ("最大回撤",)),
+    ("turnover", "换手超过上限", ("年化换手",)),
+    ("holdings", "持仓太少", ("少于下限",)),
+    ("robustness", "参数扰动后不稳健", ("不够稳健",)),
+    ("months", "可比较的月份不足", ("月份不足", "无法计算夏普")),
+)
+
+
+def reject_codes(decision: str) -> list[str]:
+    """从版本的检验结论里识别未通过的原因（一个候选可能有多条）。"""
+    return [code for code, _, keys in REJECT_REASONS if any(k in (decision or "") for k in keys)]
 
 
 def check_gates(cand: dict, champ: dict | None, gates: Gates, n_tests: int = 1,

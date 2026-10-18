@@ -268,6 +268,18 @@ def readiness_messages(kind: str, name: str, ref_id: int, prev: dict | None, new
     return out
 
 
+def auto_pause_message(name: str, sid: int, outlook: dict) -> Message:
+    """每晚自动优化因升级门槛过严而暂停。"""
+    lines = [f"**{name}** 当前冠军以来已检验 {outlook['tests']} 个候选，下一轮升级需要 "
+             f"p ≤ {outlook['p_need']:.2g}，几乎不可能再升级，每晚自动优化已暂停（避免白白消耗模型额度）。", "",
+             "可以在策略页查看各候选未通过的原因；确实想继续，可以重新打开「每晚自动优化」。"]
+    link = _link("strategy", sid)
+    if link:
+        lines.append(f"详情：{link}")
+    return Message("health", f"autopause:{sid}:{outlook['tests']}", f"【自动优化暂停】{name}：升级门槛已过严",
+                   "\n".join(lines))
+
+
 def data_quality_message(issues: list[dict], today: date | None = None) -> Message:
     """每晚数据质量扫描新发现的错误。"""
     today = today or to_market_time(utcnow(), "CN").date()

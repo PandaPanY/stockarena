@@ -7,7 +7,6 @@ import logging
 from dataclasses import asdict, dataclass, fields
 from datetime import date
 
-import numpy as np
 import yaml
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -197,13 +196,12 @@ def trial_scores(s: Session, st: QuantStrategyRow) -> list[float]:
 
 def dsr_of(s: Session, st: QuantStrategyRow, v: QuantVersionRow) -> float | None:
     """按该策略至今的尝试次数折算的夏普（DSR）；另存的策略连同来源的尝试一起算。"""
-    from app.quant.evaluate import deflated_sharpe
+    from app.quant.evaluate import deflated_sharpe, trial_sharpe_var
 
     sharpes = trial_scores(s, st)
     if not v.dev:
         return None
-    var = float(np.var(sharpes, ddof=1)) if len(sharpes) > 1 else None
-    return deflated_sharpe(v.dev, len(sharpes), var)
+    return deflated_sharpe(v.dev, len(sharpes), trial_sharpe_var(sharpes))
 
 
 def next_number(s: Session, strategy_id: int) -> int:
@@ -229,6 +227,7 @@ def promote(s: Session, st: QuantStrategyRow, v: QuantVersionRow, reason: str) -
             old.status = "retired"
     v.status, v.decision, v.promoted_at = "champion", reason, utcnow()
     st.champion_id = v.id
+    st.auto_pause = None            # 换了冠军，累计检验次数重新开始
 
 
 def reevaluate(s: Session, st: QuantStrategyRow) -> int:
@@ -297,6 +296,47 @@ def create_strategy(s: Session, *, name: str, style: str, description: str, spec
         st.origin = {"kind": "new", "prior_tests": len(trial_scores), "trial_scores": trials,
                      "base_version_id": v.id, "at": utcnow().isoformat()}
     return st
+
+
+AUTO_PAUSE_P = 0.002     # 下一轮候选的显著性门槛严于这个值时，每晚自动优化暂停（几乎不可能再升级）
+
+
+def upgrade_outlook(s: Session, st: QuantStrategyRow) -> dict:
+    """下一轮 AI 优化的升级门槛：当前冠军以来已检验的候选数、下一轮需要的 p 值、是否已经严到几乎不可能升级。"""
+    cfg = settings_of(st)
+    tests = prior_tests(s, st, st.champion_id) if cfg.cumulative_tests else 0
+    p_need = cfg.p_max / max(tests + cfg.candidates, 1)
+    return {"tests": tests, "p_need": p_need, "hopeless": cfg.cumulative_tests and p_need < AUTO_PAUSE_P,
+            "pause_p": AUTO_PAUSE_P}
+
+
+def upgrade_status(s: Session, st: QuantStrategyRow) -> dict | None:
+    """当前冠军以来的候选为什么没有升级：按原因汇总，并给出下一轮的门槛与自动优化是否已暂停。"""
+    from app.quant.evaluate import REJECT_REASONS, reject_codes
+
+    champ = s.get(QuantVersionRow, st.champion_id) if st.champion_id else None
+    if champ is None:
+        return None
+    cands = list(s.scalars(select(QuantVersionRow).where(
+        QuantVersionRow.strategy_id == st.id, QuantVersionRow.parent_id == champ.id,
+        QuantVersionRow.id != champ.id, QuantVersionRow.status != "champion")))
+    counts = {code: 0 for code, _, _ in REJECT_REASONS}
+    only_sig, ps = 0, []
+    for v in cands:
+        codes = reject_codes(v.decision)
+        for c in codes:
+            counts[c] += 1
+        if codes == ["significance"]:
+            only_sig += 1
+        p = ((v.dev or {}).get("vs_champion") or {}).get("p")
+        if p is not None:
+            ps.append(p)
+    return {"champion_number": champ.number, "candidates": len(cands),
+            "reasons": [{"code": code, "label": label, "count": counts[code]}
+                        for code, label, _ in REJECT_REASONS if counts[code]],
+            "only_significance": only_sig, "best_p": min(ps) if ps else None,
+            "p_below_05": sum(p < 0.05 for p in ps), "tested": len(ps),
+            "auto_pause": st.auto_pause or None} | upgrade_outlook(s, st)
 
 
 def prior_tests(s: Session, st: QuantStrategyRow, version_id: int | None) -> int:

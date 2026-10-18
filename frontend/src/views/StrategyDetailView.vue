@@ -27,6 +27,7 @@ import ReadinessPanel from '@/components/lab/ReadinessPanel.vue'
 import { READY_TYPE } from '@/utils/readiness'
 import TrackingPanel from '@/components/lab/TrackingPanel.vue'
 import TimelinePanel from '@/components/lab/TimelinePanel.vue'
+import UpgradeStatus from '@/components/lab/UpgradeStatus.vue'
 import TradeDetails from '@/components/lab/TradeDetails.vue'
 import VersionReport from '@/components/lab/VersionReport.vue'
 import { formatDateTime, formatPercent } from '@/utils/format'
@@ -77,7 +78,25 @@ const num = (v: number | null | undefined, d = 2) => (v === null || v === undefi
 
 // ---------------------------------------------------------------- 研究
 const rounds = ref(5)
+
+/** 升级门槛已过严时，手动优化或重新打开自动优化前先确认（会消耗模型额度，几乎不可能升级） */
+async function confirmHopeless(action: string): Promise<boolean> {
+  const st = detail.value?.upgrade_status
+  if (!st?.hopeless) return true
+  try {
+    await ElMessageBox.confirm(
+      `当前冠军以来已检验 ${st.tests} 个候选，下一轮需要 p ≤ ${st.p_need.toPrecision(2)}，几乎不可能升级。仍然${action}吗？`,
+      '升级门槛已经很严',
+      { type: 'warning', confirmButtonText: `仍然${action}`, cancelButtonText: '取消' },
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function startResearch() {
+  if (!(await confirmHopeless('优化'))) return
   try {
     await quantApi.research(id.value, rounds.value)
     ElMessage.success('开始优化')
@@ -240,7 +259,8 @@ async function saveSettings() {
   }
 }
 
-async function toggleAuto(v: string | number | boolean) {
+async function toggleAuto(v: string | number | boolean, confirmed = false) {
+  if (v && !confirmed && !(await confirmHopeless('每晚自动优化'))) return
   try {
     await quantApi.patch(id.value, { auto_optimize: !!v })
     load()
@@ -384,6 +404,13 @@ function openReport() {
     <el-alert v-if="!detail.mine" type="info" :closable="false" show-icon class="readonly">
       这是管理员维护的公共策略，只能查看。想修改规则、让 AI 优化、实时跟踪或放进组合，请先「另存为新策略」。
     </el-alert>
+
+    <UpgradeStatus
+      v-if="detail.upgrade_status?.candidates"
+      :status="detail.upgrade_status"
+      :mine="detail.mine"
+      @resume="toggleAuto(true, true)"
+    />
 
     <el-tabs v-model="tab">
       <el-tab-pane label="冠军版本" name="champion">

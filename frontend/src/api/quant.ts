@@ -292,8 +292,32 @@ export interface WalkForward {
   }[]
 }
 
+/** 当前冠军以来的候选为什么没有升级，以及下一轮的门槛 */
+export interface UpgradeStatus {
+  champion_number: number
+  /** 当前冠军以来的候选数（不含冠军本身） */
+  candidates: number
+  /** 未通过的原因及候选数（一个候选可能有多条原因） */
+  reasons: { code: string; label: string; count: number }[]
+  /** 只差显著性的候选数 */
+  only_significance: number
+  best_p: number | null
+  p_below_05: number
+  /** 做过月度配对检验的候选数 */
+  tested: number
+  /** 累计检验次数（含另存 / 导入继承的） */
+  tests: number
+  /** 下一轮候选需要的 p 值 */
+  p_need: number
+  /** 门槛严于 pause_p：几乎不可能再升级 */
+  hopeless: boolean
+  pause_p: number
+  auto_pause: { at: string; tests: number; p_need: number; resumed: boolean; resumed_at?: string } | null
+}
+
 export interface StrategyDetail extends Strategy {
   quality: ResearchQuality
+  upgrade_status: UpgradeStatus | null
   champion_detail: VersionDetail | null
   version_list: VersionBrief[]
   runs: ResearchRun[]

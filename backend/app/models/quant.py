@@ -39,6 +39,8 @@ class QuantStrategyRow(TimestampMixin, UserOwnedMixin, Base):
     readiness: Mapped[dict] = mapped_column(JSON, default=dict)
     # 另存来源（app/quant/service.py fork_strategy）：来源策略与版本、继承的检验次数；空表示不是另存的
     origin: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # 每晚自动优化因门槛过严而暂停的记录：{at, tests, p_need, resumed}；resumed 表示用户看过后选择继续。换冠军时清空
+    auto_pause: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # 公共策略：所有用户都能查看和另存，只有所有者（管理员）能修改、优化、跟踪。管理员创建的风格策略库默认公共
     is_public: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 

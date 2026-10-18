@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import current_user_id, require_admin
 from app.auth import core as auth_core
+from app.core.timeutils import utcnow
 from app.db.session import get_db
 from app.models import LLMProviderRow
 from app.models.quant import (
@@ -466,6 +467,7 @@ def get_strategy(sid: int, db: Session = Depends(get_db), user_id: int = Depends
     return strategy_dict(db, st, user_id) | {
         "champion_detail": service.version_detail(champ) if champ else None,
         "quality": service.research_quality(db, st),
+        "upgrade_status": service.upgrade_status(db, st),
         "version_list": [service.version_brief(v) for v in versions],
         "runs": [run_dict(r) for r in runs],
         "settings_full": service.settings_of(st).to_dict(),
@@ -573,6 +575,13 @@ def patch_strategy(sid: int, body: StrategyPatch, db: Session = Depends(get_db),
             st.settings = new.to_dict()
         except LabError as e:
             raise _err(e) from None
+    if data_.get("auto_optimize") and not st.auto_optimize:
+        # 门槛已过严时用户仍要打开：记下「看过后选择继续」，每晚不再自动暂停
+        outlook = service.upgrade_outlook(db, st)
+        if outlook["hopeless"]:
+            st.auto_pause = {**(st.auto_pause or {"at": utcnow().isoformat(timespec="seconds"),
+                                                  "tests": outlook["tests"], "p_need": outlook["p_need"]}),
+                             "resumed": True}
     for k in ("name", "description", "provider_id", "model", "auto_optimize", "status"):
         if k in data_:
             setattr(st, k, data_[k])

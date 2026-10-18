@@ -180,6 +180,7 @@ async def get_strategy(ctx: Context, args: dict) -> Any:
             "origin": _origin(d.get("origin")),
             "champion": _version(d.get("champion_detail"), full=True),
             "quality": dev_only(d.get("quality")),
+            "upgrade_status": d.get("upgrade_status"),
             "versions_list": [_version(v) for v in (d.get("version_list") or [])[:30]],
             "research_notes": (d.get("research_notes") or [])[-10:],
             "recent_runs": [_run(r) for r in (d.get("runs") or [])[:5]]}
