@@ -45,6 +45,7 @@ NOTES_KEEP = 40          # 研究笔记最多保留的条数
 NOTES_IN_PROMPT = 20     # 放进提示词的最近条数
 STATUS_TEXT = {"champion": "升级（当前冠军）", "retired": "曾为冠军", "rejected": "淘汰", "candidate": "候选"}
 HISTORY = 8
+MODEL_FAIL_STOP = 2     # 模型服务连续几轮报错（连不上、鉴权失败等）就停止本次优化
 # 一次只运行一个研究任务：回测占用 CPU，并避免 SQLite 写冲突
 _lock = asyncio.Lock()
 _cancel: set[int] = set()
@@ -406,7 +407,7 @@ async def _run(run_id: int) -> str:
         s.commit()
         strategy_id, rounds, n = st.id, run.rounds, settings_of(st).candidates
     client = create_client(cfg)
-    promoted = 0
+    promoted = failed = streak = 0
     try:
         await asyncio.to_thread(_warm, strategy_id)
         for r in range(1, rounds + 1):
@@ -426,7 +427,16 @@ async def _run(run_id: int) -> str:
                 entry["error"] = out.error
                 entry["raw_tail"] = (out.raw or "")[-600:]       # 便于排查格式问题
                 _log(run_id, entry, rounds_done=r)
+                failed += 1
+                # 模型服务本身连不上 / 报错（不是输出格式问题）连续 MODEL_FAIL_STOP 轮：不再空跑，记为失败
+                streak = streak + 1 if out.status == "error" else 0
+                if streak >= MODEL_FAIL_STOP:
+                    msg = f"模型调用连续 {streak} 轮失败，已停止：{out.error}"
+                    _log(run_id, status="failed", error=msg, progress="失败（模型不可用）", finished_at=utcnow(),
+                         summary=msg)
+                    return msg
                 continue
+            streak = 0
             entry["analysis"] = out.parsed.analysis
             _log(run_id, progress=f"第 {r}/{rounds} 轮：回测 {len(out.parsed.candidates)} 个候选…")
             res = await asyncio.to_thread(_round_evaluate, strategy_id, run_id, out.parsed)
@@ -438,7 +448,7 @@ async def _run(run_id: int) -> str:
         _log(run_id, status="failed", error=f"{type(e).__name__}: {e}", finished_at=utcnow(),
              progress="失败")
         return f"研究失败：{e}"
-    summary = f"完成 {rounds} 轮，升级 {promoted} 次"
+    summary = f"完成 {rounds} 轮，升级 {promoted} 次" + (f"（其中 {failed} 轮模型调用或输出失败）" if failed else "")
     _log(run_id, status="done", progress=summary, summary=summary, finished_at=utcnow())
     return summary
 
