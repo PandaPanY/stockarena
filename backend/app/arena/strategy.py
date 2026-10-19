@@ -200,7 +200,7 @@ def llm_config_for(s: Session, provider_id: int, model: str | None) -> tuple[Pro
         raise StrategyError("模型供应商不存在")
     api_key = secret_box().decrypt(provider.api_key_enc) if provider.api_key_enc else None
     cfg = ProviderConfig(provider.protocol, provider.base_url, api_key, provider.price_in_per_m,
-                         provider.price_out_per_m)
+                         provider.price_out_per_m, provider_id=provider.id)
     return cfg, model or provider.default_model, {}, provider.supports_json_mode
 
 

@@ -110,7 +110,7 @@ def test_evaluate_at_first_look(monkeypatch):
             sym = f"S{(t + k) % n}"
             events.append(Event(1, 31, sym, panel.dates[t], panel.dates[t + 1], k == 0))
     monkeypatch.setattr(ev, "collect", lambda s, pairs, st: events)
-    monkeypatch.setattr(ev, "account_delta", lambda s, pairs, end: {"delta": 0.001})
+    monkeypatch.setattr(ev, "account_delta", lambda s, pairs, end, **kw: {"delta": 0.001})
     monkeypatch.setattr(ev, "review_errors", lambda s, pairs, st: {})
     out = ev.evaluate(None, panel.dates[130], panel=panel, start=start, n_perm=500)
     r = out["result"]

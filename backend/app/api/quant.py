@@ -1134,7 +1134,7 @@ async def portfolio_review_evaluation(pid: int, db: Session = Depends(get_db),
         from app.db.session import get_sessionmaker
 
         with get_sessionmaker()() as s:
-            return {"applies": True, **review_eval.evaluate(s)}
+            return {"applies": True, **review_eval.report(s)}
 
     return await asyncio.to_thread(work)
 
@@ -1164,6 +1164,29 @@ def enable_portfolio_review(pid: int, body: ReviewIn, db: Session = Depends(get_
         agent.params = {**(agent.params or {}), "extra_body": {"chat_template_kwargs": {"enable_thinking": False}}}
     db.commit()
     return {"account_id": acc.id, "review": review.settings(pf)}
+
+
+class ReviewModelIn(BaseModel):
+    provider_id: int
+    model: str | None = Field(None, max_length=255)
+    reason: str = Field(min_length=1, max_length=500)
+
+
+@router.post("/portfolios/{pid}/review/model")
+def change_review_model(pid: int, body: ReviewModelIn, db: Session = Depends(get_db),
+                        user_id: int = Depends(current_user_id)) -> dict:
+    """更换复核模型（原模型失效等）：账户不重置；记录变更，之前的数据封存，评估从更换后的第一次决策起重新计数。"""
+    from app.arena.lifecycle import ArenaError
+    from app.quant import review
+
+    pf = _pf(db, pid, user_id)
+    _own_provider(db, body.provider_id, user_id)
+    try:
+        change = review.change_model(db, pf, body.provider_id, body.model, body.reason)
+    except ArenaError as e:
+        raise _err(e) from None
+    db.commit()
+    return {"change": change, "review": review.settings(pf)}
 
 
 @router.delete("/portfolios/{pid}/review")

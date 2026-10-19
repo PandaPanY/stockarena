@@ -119,6 +119,47 @@ def enable(s: Session, pf: QuantPortfolioRow, provider_id: int, model: str | Non
     return acc
 
 
+def is_failed(item: dict) -> bool:
+    """没有得到 AI 结论、按规则执行的复核记录（2026-10-19 之前的记录没有 failed 字段，按理由文字识别）。"""
+    return bool(item.get("failed")) or str(item.get("reason") or "").startswith("未得到复核结果")
+
+
+def change_model(s: Session, pf: QuantPortfolioRow, provider_id: int, model: str | None, reason: str) -> dict:
+    """更换复核模型（原模型失效等）：账户不变、不重置；记录变更，评估从更换后的第一次决策起重新计数
+    （app/quant/review_eval.py），之前的数据单独封存，不合并。"""
+    from app.arena.lifecycle import ArenaError
+    from app.core.timeutils import utcnow
+    from app.llm.base import is_local_endpoint
+    from app.models import LLMProviderRow
+
+    cur = settings(pf)
+    if not cur.get("enabled") or not cur.get("agent_id"):
+        raise ArenaError("AI 复核没有开启")
+    prov = s.get(LLMProviderRow, provider_id)
+    if prov is None or prov.user_id != pf.user_id:
+        raise ArenaError("模型供应商不存在（只能使用自己配置的模型）")
+    model = model or None
+    if provider_id == cur.get("provider_id") and model == (cur.get("model") or None):
+        raise ArenaError("与当前的复核模型相同")
+    if not reason.strip():
+        raise ArenaError("请写明更换原因（会记入评估的变更记录）")
+    agent = s.get(AgentRow, cur["agent_id"])
+    if agent is None:
+        raise ArenaError("找不到 AI 复核选手")
+    params = {k: v for k, v in (agent.params or {}).items() if k != "extra_body"}
+    if is_local_endpoint(prov.base_url):
+        # 本地模型关闭思考过程（与开启复核时一致）
+        params["extra_body"] = {"chat_template_kwargs": {"enable_thinking": False}}
+    agent.provider_id, agent.model, agent.params = provider_id, model, params
+    change = {"at": utcnow().isoformat(timespec="seconds"),
+              "from": {"provider_id": cur.get("provider_id"), "model": cur.get("model")},
+              "to": {"provider_id": provider_id, "model": model, "provider_name": prov.name},
+              "reason": reason.strip()[:500]}
+    pf.settings = {**(pf.settings or {}), "review": {**cur, "provider_id": provider_id, "model": model,
+                                                     "changes": [*(cur.get("changes") or []), change]}}
+    return change
+
+
 def disable(s: Session, pf: QuantPortfolioRow) -> None:
     cur = settings(pf)
     acc = s.get(AccountRow, cur["account_id"]) if cur.get("account_id") else None
@@ -386,7 +427,8 @@ async def decide_reviewed(portfolio_id: int, account_id: int, state: AccountStat
     held = {k for k, p in state.positions.items() if p.qty > 0}
     new_buys = [k for k, w in targets.items() if w > 0 and k not in held]
     picks = _member_picks(rule.extra.get("members") or {}, portfolio_id)
-    review: dict = {"model": model, "candidates": len(new_buys), "sync": sync, "items": [], "vetoed": []}
+    review: dict = {"model": model, "provider_id": getattr(provider, "provider_id", None),
+                    "candidates": len(new_buys), "sync": sync, "items": [], "vetoed": []}
     lines = [rule.analysis] if not sync else [f"AI 复核账户首次建仓：复制规则账户当前的 {len(targets)} 个目标持仓。"]
     if new_buys and provider is not None and model:
         texts, names = await asyncio.to_thread(_candidates_text, portfolio_id, new_buys, snap, picks)
@@ -400,8 +442,9 @@ async def decide_reviewed(portfolio_id: int, account_id: int, state: AccountStat
         for sym in new_buys:
             it = res["items"].get(sym)
             if it is None:
+                # failed：没有得到 AI 的结论、按规则买入；不是 AI 的「放行」，评估与统计都不计入
                 review["items"].append({"symbol": sym, "name": names.get(sym, ""), "decision": "approve", "risk": None,
-                                        "reason": "未得到复核结果，按规则执行"})
+                                        "reason": "未得到复核结果，按规则执行", "failed": True})
                 continue
             review["items"].append({"symbol": sym, "name": names.get(sym, ""), **it})
             if it["decision"] == "veto":
@@ -470,7 +513,7 @@ def report(s: Session, pf: QuantPortfolioRow) -> dict:
     for dec, rnd in rows:
         rv = (dec.parsed or {}).get("review") or {}
         for it in rv.get("items", []):
-            reviews.append({**it, "date": rnd.data_date.isoformat(),
+            reviews.append({**it, "failed": is_failed(it), "date": rnd.data_date.isoformat(),
                             "fill_date": rnd.fill_date.isoformat() if rnd.fill_date else None})
     members = members_of(s, pf)
     after: dict[str, list[float]] = {"veto": [], "approve": []}
@@ -487,10 +530,13 @@ def report(s: Session, pf: QuantPortfolioRow) -> dict:
             ret = float(panel.adj_close[last, j] / adj_open[i, j] - 1)
             bench = float(panel.bench[last] / panel.bench[max(i - 1, 0)] - 1)
             r["after"], r["after_excess"] = round(ret, 4), round(ret - bench, 4)
-            after[r["decision"]].append(ret - bench)
+            if not r["failed"]:
+                after[r["decision"]].append(ret - bench)
     out["reviews"] = reviews[:500]
+    done = [r for r in reviews if not r["failed"]]
     out["summary"] = {
-        "reviewed": len(reviews), "vetoed": sum(r["decision"] == "veto" for r in reviews),
+        "reviewed": len(done), "vetoed": sum(r["decision"] == "veto" for r in done),
+        "failed": len(reviews) - len(done),
         "veto_after_excess": round(float(np.mean(after["veto"])), 4) if after["veto"] else None,
         "approve_after_excess": round(float(np.mean(after["approve"])), 4) if after["approve"] else None,
         "cost": round(sum(float(((d.parsed or {}).get("review") or {}).get("cost") or 0) for d, _ in rows), 4),

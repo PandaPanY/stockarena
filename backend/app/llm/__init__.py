@@ -17,6 +17,16 @@ PROTOCOLS = ("openai_compatible", "anthropic", "gemini")
 
 
 def create_client(cfg: ProviderConfig) -> LLMClient:
+    client = _create(cfg)
+    if cfg.provider_id is not None:
+        # 记录每个供应商的调用成败，连续失败时推送提醒（app/llm/health.py）
+        from app.llm.health import TrackedClient
+
+        return TrackedClient(client, cfg.provider_id)
+    return client
+
+
+def _create(cfg: ProviderConfig) -> LLMClient:
     # 延迟导入：只加载实际用到的 SDK
     if cfg.protocol == "openai_compatible":
         from app.llm.openai_compat import OpenAICompatClient

@@ -81,6 +81,7 @@ class ProviderConfig:
     api_key: str | None
     price_in_per_m: Decimal = Decimal("0")
     price_out_per_m: Decimal = Decimal("0")
+    provider_id: int | None = None       # 数据库里的供应商 id：有时记录调用成败（app/llm/health.py）
 
 
 def is_local_endpoint(base_url: str | None) -> bool:

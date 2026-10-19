@@ -18,6 +18,25 @@ export interface Provider {
   api_key_masked: string
   /** API Key 无法用当前主密钥解密时的说明（需要重新填写） */
   api_key_error?: string | null
+  /** 调用健康状态：fails 为连续失败次数（0 表示正常） */
+  health?: ProviderHealth
+}
+
+export interface ProviderHealth {
+  fails: number
+  last_error: string | null
+  last_failure_at: string | null
+  last_ok_at: string | null
+  down_since: string | null
+}
+
+/** 用到某个模型的地方（模型失效时一次换成其他模型） */
+export interface ProviderUsages {
+  strategies: { id: number; name: string; model: string | null; auto_optimize: boolean }[]
+  reviews: { portfolio_id: number; name: string; model: string | null }[]
+  watch: { model: string | null; enabled: boolean } | null
+  agents: { id: number; name: string; model: string | null; tracks: string[] }[]
+  health: ProviderHealth
 }
 
 export interface ProviderInput {
@@ -63,6 +82,23 @@ export const providersApi = {
     (await http.post<ProviderTestResult>(`/api/providers/${id}/test`, { model }, { timeout: 180000 })).data,
   models: async (id: number) =>
     (await http.get<{ models: string[]; error?: string }>(`/api/providers/${id}/models`, { timeout: 30000 })).data,
+  usages: async (id: number) => (await http.get<ProviderUsages>(`/api/providers/${id}/usages`)).data,
+  replace: async (
+    id: number,
+    body: {
+      target_provider_id: number
+      model: string | null
+      strategies: boolean
+      watch: boolean
+      agent_ids: number[]
+    },
+  ) =>
+    (
+      await http.post<{ replaced: { strategies: number; watch: boolean; agents: number }; remaining: ProviderUsages }>(
+        `/api/providers/${id}/replace`,
+        body,
+      )
+    ).data,
 }
 
 // ---------------- 选手 ----------------

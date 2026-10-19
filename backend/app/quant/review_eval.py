@@ -7,6 +7,9 @@
   分日置换检验（每天内打乱标签，10,000 次，种子 20261008）。
 - P2 账户结果：两个 AI 账户合计 − 两个规则账户合计的累计收益 ΔR。
 - 只在第 120 个交易日（否决事件 ≥ 20 时）与第 250 个交易日评估，各取 p ≤ 0.025。
+- 分段（预注册变更记录 2026-10-19）：复核模型失效、更换模型时，之前的数据封存、单独报告，不合并；新模型从两个组合
+  都换好之后的第一次决策起重新计第 0 个交易日，判定标准不变，账户结果 ΔR 也从那天起算。
+  没有得到 AI 结论、按规则执行的复核（failed）不是 AI 的「放行」，不计入任何统计。
 
 命令行：`uv run python -m app.quant.review_eval [--as-of YYYY-MM-DD]`（输出 JSON）。
 """
@@ -27,6 +30,10 @@ from app.models import DecisionRow, NavSnapshotRow, RoundRow
 from app.quant.panel import Panel
 
 START = date(2026, 10, 8)                  # 第 0 个交易日（AI 复核账户第一次决策）
+# 第一段（本地 Qwen3.8-27B）：最后一次成功复核 2026-10-16；2026-10-19 起模型服务失效、无法恢复，封存
+FIRST_SEGMENT = {"start": START, "end": date(2026, 10, 16), "sealed_at": "2026-10-19T00:00:00",
+                 "model": "本地 Qwen3.8-27B（llama.cpp，IQ4_XS 量化）",
+                 "reason": "模型服务 2026-10-19 起失效、无法恢复（预注册变更记录 2026-10-19）"}
 PAIRS = ((1, 17, 31), (2, 23, 32))         # （组合，规则账户，AI 复核账户）
 LOOKS = (120, 250)
 MIN_VETOES = 20
@@ -53,15 +60,20 @@ class Event:
 # ---------------------------------------------------------------- 样本
 
 
-def collect(s: Session, pairs=PAIRS, start: date = START) -> list[Event]:
-    """读取 AI 复核账户的全部复核事件（决策日在 start 及以后）。"""
+def collect(s: Session, pairs=PAIRS, start: date = START, end: date | None = None) -> list[Event]:
+    """读取 AI 复核账户的复核事件（决策日在 start ～ end 之间）。没有得到 AI 结论、按规则执行的不算。"""
+    from app.quant.review import is_failed
+
     out: list[Event] = []
     for pid, _rule_id, ai_id in pairs:
-        rows = s.execute(select(DecisionRow, RoundRow).join(RoundRow, DecisionRow.round_id == RoundRow.id)
-                         .where(DecisionRow.account_id == ai_id, RoundRow.data_date >= start)
-                         .order_by(RoundRow.data_date)).all()
-        for dec, rnd in rows:
+        q = (select(DecisionRow, RoundRow).join(RoundRow, DecisionRow.round_id == RoundRow.id)
+             .where(DecisionRow.account_id == ai_id, RoundRow.data_date >= start))
+        if end is not None:
+            q = q.where(RoundRow.data_date <= end)
+        for dec, rnd in s.execute(q.order_by(RoundRow.data_date)).all():
             for it in ((dec.parsed or {}).get("review") or {}).get("items", []):
+                if is_failed(it):
+                    continue
                 risk = it.get("risk")
                 out.append(Event(pid, ai_id, str(it["symbol"]), rnd.data_date, rnd.fill_date,
                                  it.get("decision") == "veto", risk if isinstance(risk, int) else None))
@@ -183,8 +195,8 @@ def permutation_test(strata, n_perm: int = N_PERM, seed: int = SEED) -> tuple[fl
     return ge / n_perm, le / n_perm
 
 
-def account_delta(s: Session, pairs=PAIRS, end: date | None = None) -> dict:
-    """ΔR：AI 账户合计 − 规则账户合计的累计收益（从 AI 账户首次有净值的那天到 end）。"""
+def account_delta(s: Session, pairs=PAIRS, end: date | None = None, start: date | None = None) -> dict:
+    """ΔR：AI 账户合计 − 规则账户合计的累计收益（从 AI 账户首次有净值的那天、或这一段的起点 start 到 end）。"""
     def navs(acc_id: int) -> dict[date, float]:
         q = select(NavSnapshotRow.date, NavSnapshotRow.nav).where(NavSnapshotRow.account_id == acc_id)
         if end is not None:
@@ -197,7 +209,7 @@ def account_delta(s: Session, pairs=PAIRS, end: date | None = None) -> dict:
     if len(firsts) < len(pairs):
         return {"delta": None}
     common = sorted(set.intersection(*(set(x) for x in rule + ai)))
-    common = [d for d in common if d >= max(firsts)]
+    common = [d for d in common if d >= max(firsts) and (start is None or d >= start)]
     if len(common) < 2:
         return {"delta": None}
     d0, d1 = common[0], common[-1]
@@ -288,7 +300,7 @@ def evaluate(s: Session, as_of: date | None = None, *, pairs=PAIRS, start: date 
     strata = _strata(events)
     d = stratified_d(strata)
     p_up, p_low = permutation_test(strata, n_perm) if n_veto >= MIN_VETOES or look == LOOKS[-1] else (None, None)
-    acct = account_delta(s, pairs, panel.dates[cutoff])
+    acct = account_delta(s, pairs, panel.dates[cutoff], start=None if start == START else panel.dates[i0])
     out["result"] = {
         "look": look, "look_date": panel.dates[cutoff].isoformat(),
         "events": len(done), "vetoes": n_veto, "approves": len(done) - n_veto,
@@ -300,6 +312,101 @@ def evaluate(s: Session, as_of: date | None = None, *, pairs=PAIRS, start: date 
     return out
 
 
+# ---------------------------------------------------------------- 分段（复核模型更换）
+
+
+def _changes(s: Session, pairs=PAIRS) -> dict[int, list[dict]]:
+    """各组合在第一段封存之后的复核模型变更（app/quant/review.py change_model 记录）。"""
+    from app.models.quant import QuantPortfolioRow
+
+    out = {}
+    for pid, _r, _a in pairs:
+        pf = s.get(QuantPortfolioRow, pid)
+        cfg = ((pf.settings or {}).get("review") or {}) if pf else {}
+        out[pid] = [c for c in cfg.get("changes") or [] if c.get("at", "") > FIRST_SEGMENT["sealed_at"]]
+    return out
+
+
+def _first_decision_after(s: Session, account_id: int, at: str) -> date | None:
+    from datetime import datetime
+
+    t = datetime.fromisoformat(at)
+    rows = s.execute(select(DecisionRow.created_at, RoundRow.data_date)
+                     .join(RoundRow, DecisionRow.round_id == RoundRow.id)
+                     .where(DecisionRow.account_id == account_id).order_by(RoundRow.data_date)).all()
+    for created, d in rows:
+        c = created if created.tzinfo else created.replace(tzinfo=t.tzinfo)
+        if c > t:
+            return d
+    return None
+
+
+def sealed_summary(s: Session, seg: dict, pairs=PAIRS) -> dict:
+    """封存的一段：只报告数量，不下结论（评估时点没有到）。"""
+    from app.quant.review import is_failed
+
+    n_dec = n_items = n_failed = n_veto = 0
+    vetoes = []
+    for _pid, _r, ai_id in pairs:
+        q = (select(DecisionRow, RoundRow).join(RoundRow, DecisionRow.round_id == RoundRow.id)
+             .where(DecisionRow.account_id == ai_id, RoundRow.data_date >= seg["start"]))
+        if seg.get("end"):
+            q = q.where(RoundRow.data_date <= seg["end"])
+        for dec, rnd in s.execute(q).all():
+            items = ((dec.parsed or {}).get("review") or {}).get("items") or []
+            n_dec += bool(items)
+            for it in items:
+                if is_failed(it):
+                    n_failed += 1
+                    continue
+                n_items += 1
+                if it.get("decision") == "veto":
+                    n_veto += 1
+                    vetoes.append({"date": rnd.data_date.isoformat(), "symbol": it.get("symbol"),
+                                   "name": it.get("name"), "reason": it.get("reason")})
+    return {"start": seg["start"].isoformat(), "end": seg["end"].isoformat() if seg.get("end") else None,
+            "model": seg.get("model"), "reason": seg.get("reason"), "decisions": n_dec, "events": n_items,
+            "vetoes": n_veto, "failed": n_failed, "veto_list": vetoes,
+            "verdict": "已封存：没有到评估时点，按预注册不下结论"}
+
+
+def report(s: Session, as_of: date | None = None, *, pairs=PAIRS, panel: Panel | None = None) -> dict:
+    """分段的评估：封存的各段（只报告数量）＋ 当前一段（按预注册评估；还没换好模型时为等待）。"""
+    from app.models.quant import QuantPortfolioRow
+
+    sealed = [sealed_summary(s, FIRST_SEGMENT, pairs)]
+    changes = _changes(s, pairs)
+    missing = [pid for pid, cs in changes.items() if not cs]
+    if missing:
+        names = [pf.name for pid in missing if (pf := s.get(QuantPortfolioRow, pid))]
+        return {"sealed": sealed, "current": {"waiting": True, "missing": names,
+                                              "message": "原复核模型已失效：两个组合都更换复核模型之后，新的一段评估"
+                                                         "从更换后的第一次决策起计算"}}
+    boundaries = sorted({c["at"] for cs in changes.values() for c in cs})
+    last = boundaries[-1]
+    # 两次更换之间（例如先换了一个组合、或换了又换）的数据也封存，不并入当前一段
+    for b0, b1 in zip(boundaries, boundaries[1:], strict=False):
+        d0 = min(filter(None, (_first_decision_after(s, a, b0) for _p, _r, a in pairs)), default=None)
+        d1 = max(filter(None, (_first_decision_after(s, a, b1) for _p, _r, a in pairs)), default=None)
+        if d0 is not None:
+            sealed.append(sealed_summary(s, {"start": d0, "end": _prev_day(d1) if d1 else None,
+                                             "model": "更换过程中", "reason": "期间又更换过复核模型"}, pairs))
+    starts = [_first_decision_after(s, a, last) for _p, _r, a in pairs]
+    model = {pid: cs[-1]["to"] for pid, cs in changes.items()}
+    if any(x is None for x in starts):
+        return {"sealed": sealed, "current": {"waiting": True, "changed_at": last, "model": model,
+                                              "message": "已更换复核模型，等待更换后的第一次决策"}}
+    start = max(starts)
+    return {"sealed": sealed, "current": {"changed_at": last, "model": model,
+                                          **evaluate(s, as_of, pairs=pairs, start=start, panel=panel)}}
+
+
+def _prev_day(d: date) -> date:
+    from datetime import timedelta
+
+    return d - timedelta(days=1)
+
+
 def main() -> None:
     from app.db.session import get_sessionmaker
 
@@ -307,7 +414,7 @@ def main() -> None:
     ap.add_argument("--as-of", type=date.fromisoformat, default=None)
     args = ap.parse_args()
     with get_sessionmaker()() as s:
-        print(json.dumps(evaluate(s, args.as_of), ensure_ascii=False, indent=2, default=str))
+        print(json.dumps(report(s, args.as_of), ensure_ascii=False, indent=2, default=str))
 
 
 if __name__ == "__main__":

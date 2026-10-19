@@ -93,7 +93,7 @@ def _apply(p: LLMProviderRow, body: ProviderIn) -> None:
 
 def _config(p: LLMProviderRow) -> ProviderConfig:
     key = secret_box().decrypt(p.api_key_enc) if p.api_key_enc else None
-    return ProviderConfig(p.protocol, p.base_url, key, p.price_in_per_m, p.price_out_per_m)
+    return ProviderConfig(p.protocol, p.base_url, key, p.price_in_per_m, p.price_out_per_m, provider_id=p.id)
 
 
 @router.get("/presets")
@@ -103,8 +103,17 @@ def presets() -> list[dict]:
 
 @router.get("")
 def list_providers(db: Session = Depends(get_db), user_id: int = Depends(current_user_id)) -> list[dict]:
-    return [to_dict(p) for p in db.scalars(select(LLMProviderRow).where(LLMProviderRow.user_id == user_id)
-                                           .order_by(LLMProviderRow.id))]
+    from app.llm import health
+
+    return [to_dict(p) | {"health": _health(health.get(db, p.id))}
+            for p in db.scalars(select(LLMProviderRow).where(LLMProviderRow.user_id == user_id)
+                                .order_by(LLMProviderRow.id))]
+
+
+def _health(h: dict) -> dict:
+    return {"fails": int(h.get("fails") or 0), "last_error": h.get("last_error") if h.get("fails") else None,
+            "last_failure_at": h.get("last_failure_at"), "last_ok_at": h.get("last_ok_at"),
+            "down_since": h.get("down_since")}
 
 
 @router.post("")
@@ -128,12 +137,52 @@ def update_provider(provider_id: int, body: ProviderIn, db: Session = Depends(ge
 
 @router.delete("/{provider_id}")
 def delete_provider(provider_id: int, db: Session = Depends(get_db), user_id: int = Depends(current_user_id)) -> dict:
+    from app.llm.usage import usage_lines, usages
+
     p = _get(db, provider_id, user_id)
     if db.scalars(select(AgentRow).where(AgentRow.provider_id == p.id)).first():
         raise HTTPException(400, "有选手正在使用该供应商，无法删除")
+    lines = usage_lines(usages(db, p.id))
+    if lines:
+        raise HTTPException(400, "还有功能在用这个模型，请先在「用到的地方」里换成其他模型：" + "；".join(
+            x.lstrip("- ") for x in lines))
     db.delete(p)
     db.commit()
     return {"ok": True}
+
+
+@router.get("/{provider_id}/usages")
+def provider_usages(provider_id: int, db: Session = Depends(get_db), user_id: int = Depends(current_user_id)) -> dict:
+    """这个模型被哪些功能用着（模型失效时一次换成其他模型）。"""
+    from app.llm import health
+    from app.llm.usage import usages
+
+    p = _get(db, provider_id, user_id)
+    return usages(db, p.id) | {"health": _health(health.get(db, p.id))}
+
+
+class ReplaceIn(BaseModel):
+    target_provider_id: int
+    model: str | None = Field(None, max_length=255)
+    strategies: bool = True
+    watch: bool = True
+    agent_ids: list[int] = Field(default_factory=list)
+
+
+@router.post("/{provider_id}/replace")
+def replace_provider(provider_id: int, body: ReplaceIn, db: Session = Depends(get_db),
+                     user_id: int = Depends(current_user_id)) -> dict:
+    """把 AI 优化、自选股监控和选中的 AI 对比选手换成另一个模型。AI 复核要在组合页单独更换。"""
+    from app.llm.usage import UsageError, replace, usages
+
+    _get(db, provider_id, user_id)
+    try:
+        out = replace(db, provider_id, body.target_provider_id, body.model, strategies=body.strategies,
+                      watch_=body.watch, agent_ids=body.agent_ids, user_id=user_id)
+    except UsageError as e:
+        raise HTTPException(400, str(e)) from None
+    db.commit()
+    return {"replaced": out, "remaining": usages(db, provider_id)}
 
 
 class TestIn(BaseModel):

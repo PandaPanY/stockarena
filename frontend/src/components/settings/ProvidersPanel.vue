@@ -10,6 +10,8 @@ import {
   type ProviderPreset,
   type ProviderTestResult,
 } from '@/api/arena'
+import ProviderUsageDialog from '@/components/settings/ProviderUsageDialog.vue'
+import { formatDateTime } from '@/utils/format'
 
 const PROTOCOL_LABELS: Record<Protocol, string> = {
   openai_compatible: 'OpenAI 兼容',
@@ -18,6 +20,13 @@ const PROTOCOL_LABELS: Record<Protocol, string> = {
 }
 
 const providers = ref<Provider[]>([])
+const usageOpen = ref(false)
+const usageOf = ref<Provider | null>(null)
+
+function openUsages(p: Provider) {
+  usageOf.value = p
+  usageOpen.value = true
+}
 const presets = ref<ProviderPreset[]>([])
 const loading = ref(false)
 
@@ -116,6 +125,23 @@ function payload(): ProviderInput {
 
 async function save() {
   if (!form.name.trim()) return ElMessage.warning('请填写名称')
+  const old = providers.value.find((p) => p.id === editingId.value)
+  if (old && ((old.base_url ?? '') !== (form.base_url ?? '') || old.default_model !== form.default_model)) {
+    // 改地址或默认模型等于把所有用到它的地方一起换掉；AI 复核换模型要走「更换复核模型」，记入评估变更
+    try {
+      const u = await providersApi.usages(old.id)
+      if (u.reviews.length) {
+        await ElMessageBox.confirm(
+          `AI 交易复核（${u.reviews.map((x) => x.name).join('、')}）正在用这个供应商。直接改地址或默认模型，复核模型会被悄悄换掉，` +
+            '评估里不会留下记录。更换复核模型请到组合页「更换复核模型」。仍然保存吗？',
+          '会改变 AI 复核的模型',
+          { type: 'warning', confirmButtonText: '仍然保存', cancelButtonText: '取消' },
+        )
+      }
+    } catch (err) {
+      if (err === 'cancel') return
+    }
+  }
   saving.value = true
   try {
     if (editingId.value) await providersApi.update(editingId.value, payload())
@@ -184,7 +210,17 @@ onMounted(load)
     </div>
 
     <el-table v-loading="loading" :data="providers" empty-text="还没有模型供应商，点击右上角添加">
-      <el-table-column prop="name" label="名称" min-width="120" />
+      <el-table-column label="名称" min-width="140">
+        <template #default="{ row }">
+          {{ row.name }}
+          <el-tooltip
+            v-if="row.health?.fails"
+            :content="`连续 ${row.health.fails} 次调用失败（最近 ${formatDateTime(row.health.last_failure_at)}）：${row.health.last_error}`"
+          >
+            <el-tag type="danger" size="small" class="health">连续失败 {{ row.health.fails }} 次</el-tag>
+          </el-tooltip>
+        </template>
+      </el-table-column>
       <el-table-column label="协议" width="130">
         <template #default="{ row }">{{ PROTOCOL_LABELS[row.protocol as Protocol] }}</template>
       </el-table-column>
@@ -201,14 +237,17 @@ onMounted(load)
       <el-table-column label="单价（每百万 token）" width="160">
         <template #default="{ row }">入 {{ row.price_in_per_m }} / 出 {{ row.price_out_per_m }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="220" fixed="right">
+      <el-table-column label="操作" width="300" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" :loading="testing === row.id" @click="test(row)">测试连接</el-button>
+          <el-button link type="primary" @click="openUsages(row)">用到的地方</el-button>
           <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
           <el-button link type="danger" @click="remove(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
+
+    <ProviderUsageDialog v-model="usageOpen" :provider="usageOf" :providers="providers" @changed="load" />
 
     <el-alert
       v-if="testResult"
@@ -308,6 +347,10 @@ onMounted(load)
 </template>
 
 <style scoped>
+.health {
+  margin-left: 6px;
+}
+
 .key-error {
   color: var(--el-color-danger);
 }

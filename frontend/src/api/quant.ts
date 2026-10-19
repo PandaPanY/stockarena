@@ -1201,11 +1201,28 @@ export interface ReviewItem {
   /** 执行日开盘至今的收益与相对沪深300 的超额 */
   after?: number
   after_excess?: number
+  /** 没有得到 AI 结论、按规则执行（不是 AI 的放行，不计入统计与评估） */
+  failed?: boolean
+}
+
+/** 复核模型的一次更换（记入评估的变更记录） */
+export interface ReviewModelChange {
+  at: string
+  from: { provider_id: number | null; model: string | null }
+  to: { provider_id: number; model: string | null; provider_name?: string }
+  reason: string
 }
 
 export interface ReviewReport {
   enabled: boolean
-  settings: { enabled?: boolean; account_id?: number; provider_id?: number; model?: string | null; since?: string }
+  settings: {
+    enabled?: boolean
+    account_id?: number
+    provider_id?: number
+    model?: string | null
+    since?: string
+    changes?: ReviewModelChange[]
+  }
   curve?: { date: string; rule: number; ai: number }[]
   rule_return?: number
   ai_return?: number
@@ -1214,6 +1231,8 @@ export interface ReviewReport {
   summary?: {
     reviewed: number
     vetoed: number
+    /** 复核失败、按规则执行的次数 */
+    failed?: number
     veto_after_excess: number | null
     approve_after_excess: number | null
     cost: number
@@ -1222,9 +1241,34 @@ export interface ReviewReport {
   }
 }
 
-/** AI 复核有效性评估（预注册 docs/prereg/2026-10-08-ai-review.md）：评估时点之前只有进度 */
+/** 封存的一段（复核模型失效、更换前的数据）：只报告数量，不下结论 */
+export interface ReviewSealedSegment {
+  start: string
+  end: string | null
+  model: string | null
+  reason: string | null
+  decisions: number
+  events: number
+  vetoes: number
+  failed: number
+  veto_list: { date: string; symbol: string; name: string; reason: string }[]
+  verdict: string
+}
+
+/** AI 复核有效性评估（预注册 docs/prereg/2026-10-08-ai-review.md）：封存的各段 + 当前一段 */
 export interface ReviewEvaluation {
   applies: boolean
+  sealed?: ReviewSealedSegment[]
+  current?: ReviewSegmentEvaluation
+}
+
+/** 当前一段：还没换好模型时 waiting；评估时点之前只有进度 */
+export interface ReviewSegmentEvaluation {
+  waiting?: boolean
+  message?: string
+  missing?: string[]
+  changed_at?: string
+  model?: Record<string, { provider_id: number; model: string | null; provider_name?: string }>
   start?: string
   as_of?: string
   /** 自第 0 个交易日以来的交易日数 */
@@ -1255,6 +1299,8 @@ export const reviewApi = {
   enable: async (pid: number, provider_id: number, model?: string | null) =>
     (await http.post(`/api/quant/portfolios/${pid}/review`, { provider_id, model: model || null })).data,
   disable: async (pid: number) => (await http.delete(`/api/quant/portfolios/${pid}/review`)).data,
+  changeModel: async (pid: number, body: { provider_id: number; model: string | null; reason: string }) =>
+    (await http.post(`/api/quant/portfolios/${pid}/review/model`, body)).data,
 }
 /** 自选倾斜账户：规则账户的决策按自选权重调整（只调整已选中的股票） */
 export interface TiltReport {
