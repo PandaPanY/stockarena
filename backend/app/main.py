@@ -47,12 +47,35 @@ from app.db.migrate import upgrade_to_head
 from app.db.session import get_engine, get_sessionmaker
 from app.market.retry import DataSourceError
 from app.mcp import server as mcp_server
+from app.ops import downtime as ops_downtime
 from app.quant import tasks as quant_tasks
 from app.scheduler import register_jobs, shutdown_scheduler, start_scheduler
 from app.skills import sandbox as skill_sandbox
 from app.skills.gate import skills_enabled
 
 logger = logging.getLogger(__name__)
+
+
+def _ops_startup() -> None:
+    """运行保障：记录定时任务结果；检查上次停机期间错过的任务，错过了就推送提醒，并在补跑后检查数据完整性。"""
+    from datetime import timedelta
+
+    from apscheduler.triggers.date import DateTrigger
+
+    from app.core.timeutils import utcnow
+    from app.ops import jobs as ops_jobs
+    from app.scheduler import get_scheduler, run_integrity
+
+    ops_jobs.install()
+    try:
+        info = ops_downtime.on_startup(get_scheduler().get_jobs())
+    except Exception:
+        logger.exception("停机检测失败")
+        return
+    if info and info["missed"]:
+        get_scheduler().add_job(run_integrity, DateTrigger(run_date=utcnow() + timedelta(
+            minutes=ops_downtime.CHECK_DELAY_MIN)), id="ops_integrity_after_downtime",
+            name="服务中断后的完整性检查", replace_existing=True)
 
 
 @asynccontextmanager
@@ -79,16 +102,20 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         asyncio.get_running_loop().run_in_executor(None, quant_tasks.warm_caches)   # 后台，不阻塞启动
         intraday_task = asyncio.get_running_loop().create_task(get_intraday_engine().run())
     start_scheduler()
+    if settings.auto_run:
+        _ops_startup()
     if skills_enabled():
         await skill_sandbox.cleanup_sessions()
     lag_stop = asyncio.Event()
     lag_task = asyncio.get_running_loop().create_task(watch_loop_lag(lag_stop))     # 事件循环卡顿诊断
+    beat_task = asyncio.get_running_loop().create_task(ops_downtime.heartbeat_loop(lag_stop))   # 停机检测的心跳
     logger.info("%s %s 已启动（env=%s）", settings.app_name, settings.version, settings.env)
     try:
         yield
     finally:
         lag_stop.set()
         await lag_task
+        await beat_task
         if intraday_task is not None:
             get_intraday_engine().stop()
             intraday_task.cancel()

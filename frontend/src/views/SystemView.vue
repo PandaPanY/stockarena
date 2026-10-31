@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { errorMessage } from '@/api/http'
-import { fetchJobs, type JobInfo } from '@/api/system'
 import { systemApi, type DataSourceStatus, type EventItem } from '@/api/arena'
 import DataQualityPanel from '@/components/DataQualityPanel.vue'
+import OpsPanel from '@/components/OpsPanel.vue'
 import { useSystemStore } from '@/stores/system'
 import { formatDateTime, marketLabel } from '@/utils/format'
 
 const system = useSystemStore()
-const jobs = ref<JobInfo[]>([])
 const jobsError = ref<string | null>(null)
+const ops = ref<InstanceType<typeof OpsPanel> | null>(null)
 const sources = ref<DataSourceStatus[]>([])
 const events = ref<EventItem[]>([])
 const SOURCE_LABELS: Record<string, string> = {
@@ -21,11 +21,8 @@ const SOURCE_LABELS: Record<string, string> = {
 async function refreshAll() {
   await system.refresh()
   try {
-    ;[jobs.value, sources.value, events.value] = await Promise.all([
-      fetchJobs(),
-      systemApi.datasources(),
-      systemApi.events(50),
-    ])
+    ;[sources.value, events.value] = await Promise.all([systemApi.datasources(), systemApi.events(50)])
+    ops.value?.load()
     jobsError.value = null
   } catch (err) {
     jobsError.value = errorMessage(err)
@@ -92,6 +89,10 @@ onMounted(refreshAll)
       </el-card>
     </template>
 
+    <el-card shadow="never" header="运行状况" class="mt">
+      <OpsPanel ref="ops" />
+    </el-card>
+
     <el-card shadow="never" header="数据源" class="mt">
       <el-table :data="sources" empty-text="尚未访问过数据源（赛道启动后出现）">
         <el-table-column label="数据" width="160">
@@ -118,17 +119,6 @@ onMounted(refreshAll)
 
     <el-card shadow="never" header="数据质量" class="mt">
       <DataQualityPanel />
-    </el-card>
-
-    <el-card shadow="never" header="调度任务" class="mt">
-      <el-alert v-if="jobsError" type="error" :title="jobsError" :closable="false" />
-      <el-table v-else :data="jobs" empty-text="暂无调度任务（赛道启动后出现）">
-        <el-table-column prop="name" label="任务" />
-        <el-table-column prop="trigger" label="触发规则" />
-        <el-table-column label="下次运行（北京时间）">
-          <template #default="{ row }">{{ formatDateTime(row.next_run_time, 'Asia/Shanghai') }}</template>
-        </el-table-column>
-      </el-table>
     </el-card>
 
     <el-card shadow="never" header="最近事件" class="mt">

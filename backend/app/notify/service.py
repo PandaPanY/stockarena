@@ -115,6 +115,12 @@ def _followed(s: Session) -> list[tuple[str, str, int, AccountRow, TrackRow]]:
     return out
 
 
+def page_link(path: str) -> str:
+    """页面链接（如 /system）；没有配置对外访问地址时为空。"""
+    base = get_settings().public_url
+    return f"{base.rstrip('/')}{path}" if base else ""
+
+
 def settings_link(tab: str) -> str:
     """配置中心某个标签页的链接；没有配置对外访问地址时为空。"""
     base = get_settings().public_url

@@ -173,6 +173,26 @@ python3 -c "import sqlite3; sqlite3.connect('data/stockarena.db').backup(sqlite3
 
 恢复：停止服务，把备份的 `stockarena.db`、`secret.key` 放回数据目录，再启动。
 
+### 自动每日备份
+
+服务每天 02:30（北京时间）自动备份数据库：用在线备份得到一致的副本，检查完整性后压缩为 `data/backup/daily/stockarena-日期-时间.db.gz`，保留最近 7 份（`backup_keep`）。失败时推送「备份失败」，「系统状态 → 运行状况」可以看到最近一次备份，也可以「立即备份」。
+
+**建议再存一份到别处**：服务器磁盘坏了，同一块盘上的备份也没了。在 `config/config.yaml` 里设置：
+
+```yaml
+backup_dir: /mnt/另一块硬盘/stockarena-backup     # 或 NAS 挂载目录、同步盘目录
+```
+
+每次备份后会复制一份过去，同样保留最近 `backup_keep` 份；复制失败会推送提醒。`secret.key` 不会自动复制（它很少变化，而且不应该和数据放在一起随处同步），请自己另外保存一份。
+
+恢复自动备份：
+
+```bash
+gunzip -c data/backup/daily/stockarena-20261031-0230.db.gz > data/stockarena.db
+```
+
+（先停止服务；恢复前把现在的 `stockarena.db` 改名留着。）
+
 ## 7. 升级
 
 ```bash

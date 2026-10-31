@@ -64,6 +64,18 @@ async def run_quant_nightly() -> None:
     await nightly()
 
 
+async def run_backup() -> None:
+    from app.ops.backup import scheduled
+
+    await scheduled()
+
+
+async def run_integrity(day=None) -> None:
+    from app.ops.integrity import scheduled
+
+    await scheduled(day)
+
+
 def register_jobs(startup_catch_up_delay_s: int = 20) -> None:
     """收盘后多次尝试：数据源的当日日线可能延迟发布；流程幂等，已完成的步骤会跳过。"""
     scheduler = get_scheduler()
@@ -98,6 +110,13 @@ def register_jobs(startup_catch_up_delay_s: int = 20) -> None:
                           id=f"westock_snapshot_{hour:02d}{minute:02d}",
                           name=f"westock 数据快照 {hour:02d}:{minute:02d}（Asia/Shanghai）", replace_existing=True,
                           misfire_grace_time=1800, coalesce=True, max_instances=1)
+    # 运行保障（app/ops）：每天 02:30 备份数据库；交易日 23:50 检查当天数据是否完整（westock 补查之后）
+    scheduler.add_job(run_backup, CronTrigger(hour=2, minute=30, timezone="Asia/Shanghai"),
+                      id="ops_backup", name="数据库备份 02:30（Asia/Shanghai）", replace_existing=True,
+                      misfire_grace_time=3600, coalesce=True, max_instances=1)
+    scheduler.add_job(run_integrity, CronTrigger(day_of_week="mon-fri", hour=23, minute=50, timezone="Asia/Shanghai"),
+                      id="ops_integrity", name="每日完整性检查 23:50（Asia/Shanghai）", replace_existing=True,
+                      misfire_grace_time=3600, coalesce=True, max_instances=1)
     # 启动后补跑一次：处理停机期间错过的交易日
     scheduler.add_job(run_all_markets, DateTrigger(run_date=utcnow() + timedelta(seconds=startup_catch_up_delay_s)),
                       id="startup_catch_up", name="启动补跑（全部市场）", replace_existing=True)

@@ -79,3 +79,72 @@ def jobs(_: int = Depends(require_admin)) -> list[JobInfo]:
         JobInfo(id=job.id, name=job.name, next_run_time=job.next_run_time, trigger=str(job.trigger))
         for job in get_scheduler().get_jobs()
     ]
+
+
+# ---------------------------------------------------------------- 运行保障（app/ops）
+
+
+@router.get("/ops")
+def ops_status(db: Session = Depends(get_db), _: int = Depends(require_admin)) -> dict:
+    """运行状况：最近一次停机、定时任务最近结果、每日完整性检查、备份与磁盘、模型与推送通道。"""
+    from datetime import timedelta
+
+    from app.llm import health
+    from app.models import LLMProviderRow, NotificationRow
+    from app.ops import backup, get_state, integrity
+
+    recent = get_state(db, "jobs")
+    jobs_out = []
+    for job in get_scheduler().get_jobs():
+        r = recent.get(job.id) or {}
+        jobs_out.append({"id": job.id, "name": job.name, "next_run_time": job.next_run_time.isoformat()
+                         if job.next_run_time else None, **{k: r.get(k) for k in
+                                                              ("status", "started_at", "finished_at", "seconds",
+                                                               "error")}})
+    folder = backup.local_dir()
+    files = sorted(folder.glob(f"{backup.PREFIX}*{backup.SUFFIX}"), reverse=True) if folder.is_dir() else []
+    since = utcnow() - timedelta(days=7)
+    failed_sends = [{"title": n.title, "error": n.error, "at": n.created_at.isoformat()}
+                    for n in db.scalars(select(NotificationRow).where(NotificationRow.status == "failed",
+                                                                      NotificationRow.created_at >= since)
+                                        .order_by(NotificationRow.id.desc()).limit(10))]
+    return {
+        "downtime": get_state(db, "downtime").get("last"),
+        "jobs": jobs_out,
+        "integrity": get_state(db, "integrity").get("last"),
+        "backup": get_state(db, "backup") | {
+            "files": [{"name": f.name, "size": f.stat().st_size} for f in files[:10]],
+            "keep": get_settings().backup_keep, "extra_dir": str(get_settings().backup_dir or "") or None},
+        "disk": integrity.disk_status(),
+        "models": [{"id": p.id, "name": p.name, **{k: v for k, v in health.get(db, p.id).items()
+                                                    if k in ("fails", "last_error", "last_ok_at", "down_since")}}
+                   for p in db.scalars(select(LLMProviderRow).order_by(LLMProviderRow.id))],
+        "failed_sends": failed_sends,
+    }
+
+
+@router.post("/ops/backup")
+async def ops_backup_now(_: int = Depends(require_admin)) -> dict:
+    """立即备份一次数据库。"""
+    import asyncio
+
+    from fastapi import HTTPException
+
+    from app.ops import backup, now_iso, update_state
+
+    try:
+        out = await asyncio.to_thread(backup.run_backup)
+    except backup.BackupError as e:
+        raise HTTPException(400, str(e)) from None
+    update_state("backup", last=out | {"at": now_iso()}, last_error=None)
+    return out
+
+
+@router.post("/ops/check")
+async def ops_check_now(_: int = Depends(require_admin)) -> dict:
+    """立即做一次完整性检查（最近一个 A 股交易日；有问题也推送）。"""
+    import asyncio
+
+    from app.ops import integrity
+
+    return await asyncio.to_thread(integrity.check)

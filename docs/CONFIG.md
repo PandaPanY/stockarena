@@ -25,6 +25,8 @@
 | `public_url` | `SA_PUBLIC_URL` | 空 | 对外访问地址，用于推送消息里的页面链接；为空时不附链接 |
 | `auth_enabled` | `SA_AUTH_ENABLED` | `true` | 访问保护：接口需要登录。**只在本机自己用、且只监听 `127.0.0.1` 时才可以关闭**；关闭后所有访问者都是管理员 |
 | `skills_enabled` | `SA_SKILLS_ENABLED` | 不写 | 技能功能（在 Docker 容器里执行第三方代码）。不写时：已安装过技能的旧安装保持开启，新安装关闭。见 [SKILLS.md](SKILLS.md) |
+| `backup_keep` | `SA_BACKUP_KEEP` | `7` | 每日自动备份（02:30）保留的份数，见 [DEPLOY.md](DEPLOY.md) 第 6 节 |
+| `backup_dir` | `SA_BACKUP_DIR` | 空 | 每日备份再复制一份到这个目录（另一块硬盘、NAS 挂载目录等）；为空时只在 `data/backup/daily/` 保存 |
 | `mcp_enabled` | `SA_MCP_ENABLED` | `true` | MCP 服务（`/api/mcp`）：用户用个人 API 令牌从 Claude Code、Cursor 等 AI 客户端查询和研究策略。见 [MCP.md](MCP.md) |
 | `auto_run` | `SA_AUTO_RUN` | `true` | 按收盘时间自动执行日终流程、每晚数据更新与 AI 优化、自选股监控等定时任务 |
 | `direct_hosts` | `SA_DIRECT_HOSTS` | 国内行情域名列表（见 `backend/app/core/network.py`） | 不经过系统代理、直接访问的域名。启动时追加到 `NO_PROXY` |
