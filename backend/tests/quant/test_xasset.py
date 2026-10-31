@@ -83,6 +83,13 @@ def test_cli_runs_each_stage_once(panel, tmp_path, monkeypatch, capsys):
     assert xasset.main(["holdout"]) == 0
     monkeypatch.setattr(xasset, "_load", lambda: {"dev": {"chosen": "A", "passed": True}, "holdout": {"x": 1}})
     assert xasset.main(["holdout"]) == 1                            # 留出期只看一次
+    monkeypatch.setattr(xasset, "_load", lambda: {"dev": {"passed": True}, "holdout": {"passed": False}})
+    assert xasset.main(["library"]) == 1                            # 留出期没通过：不加入策略库
+    made = []
+    monkeypatch.setattr(xasset, "_load", lambda: {"dev": {"passed": True}, "holdout": {"passed": True}})
+    monkeypatch.setattr(xasset, "add_to_library", lambda s, uid: made.append(uid) or type("P", (), {
+        "name": "x", "id": 1, "follow_account_id": 2})())
+    assert xasset.main(["library"]) == 0 and made == [1]
 
 
 def test_costs_fixed_ignores_user_settings():

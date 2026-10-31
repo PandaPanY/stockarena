@@ -290,8 +290,8 @@ def main(argv: list[str]) -> int:
         if not ((data.get("dev") or {}).get("passed") and (data.get("holdout") or {}).get("passed")):
             print("开发期与留出期都通过后才能加入策略库")
             return 1
-        from app.core.config import DEFAULT_USER_ID
         from app.db.session import get_sessionmaker
+        from app.models import DEFAULT_USER_ID
 
         with get_sessionmaker()() as s:
             pf = add_to_library(s, DEFAULT_USER_ID)
