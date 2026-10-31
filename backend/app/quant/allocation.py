@@ -122,12 +122,13 @@ def allocate(returns: np.ndarray, i: int, budget: np.ndarray, cfg: AllocSettings
     b = b / b.sum()
     window = returns[max(i - cfg.lookback + 1, 0):i + 1]
     window = window[np.isfinite(window).all(axis=1)]
-    # 数据不足或某个成员几乎没有波动（尚未建仓）时退回固定权重，避免除以接近 0 的波动
+    # 数据不足、或某个成员大部分时间没有持仓（尚未建仓，日收益恰好为 0）时退回固定权重。
+    # 不按波动高低判断：国债 ETF 的年化波动可以低于 1%，那是真实的低波动，不是没有建仓
     if len(window) < max(20, cfg.lookback // 2):
         return b, 1.0, "成员收益数据不足，使用固定权重"
     vol = window.std(axis=0, ddof=1) * np.sqrt(ANNUAL)
-    if (vol < 0.01).any():
-        return b, 1.0, "有成员波动过低（可能尚未建仓），使用固定权重"
+    if ((window == 0).mean(axis=0) > 0.5).any() or (vol <= 0).any():
+        return b, 1.0, "有成员大部分时间没有持仓（可能尚未建仓），使用固定权重"
     cov = np.cov(window.T) * ANNUAL + np.eye(len(b)) * 1e-8
     if cfg.method == "inverse_vol":
         w = b / vol

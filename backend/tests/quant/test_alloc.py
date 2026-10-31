@@ -66,7 +66,10 @@ def test_falls_back_to_budget_when_data_insufficient():
     flat = _returns([0.2, 0.2])
     flat[:, 1] = 0.0                                                # 尚未建仓的成员
     w, _, note = allocate(flat, 199, np.array([0.5, 0.5]), AllocSettings(method="inverse_vol"))
-    assert np.allclose(w, [0.5, 0.5]) and "波动过低" in note
+    assert np.allclose(w, [0.5, 0.5]) and "没有持仓" in note
+    calm = _returns([0.2, 0.007])                                   # 真实的低波动（国债 ETF 约 0.7%）不算未建仓
+    w, _, note = allocate(calm, 199, np.array([0.5, 0.5]), AllocSettings(method="inverse_vol"))
+    assert w[1] > 0.9 and not note
 
 
 def test_settings_validation():
@@ -78,7 +81,7 @@ def test_settings_validation():
         AllocSettings.from_dict({"vol_target": 0.9})
 
 
-def test_portfolio_targeter_reallocates_on_schedule(monkeypatch):
+def test_portfolio_targeter_reallocates_on_schedule(db, monkeypatch):
     monkeypatch.setattr(allocation, "MEMBER_START", 30)
     good, bad = parse_spec(GOOD), parse_spec({**GOOD, "factors": [{"name": "momentum", "params": {"window": 60},
                                                                      "direction": "low"}]})
