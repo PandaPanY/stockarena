@@ -4,6 +4,7 @@
   uv run python -m app.quant.xasset dev        开发期：4 个候选 + 2 个对照，挑选与主要检验
   uv run python -m app.quant.xasset holdout    留出期：只在开发期通过时运行，只运行一次
   uv run python -m app.quant.xasset forward    前瞻期：满 250 个交易日时给出评估结论，之前只显示进度
+  uv run python -m app.quant.xasset library    开发期与留出期都通过后：把选中的方案加入策略库（参数冻结）并开始实时跟踪
 
 每个方案是若干「只持有一只 ETF」的成员策略，用组合引擎（PortfolioTargeter + allocation.py）分配资金；
 从 2018-01-01 起连续运行一次，各期间的指标从同一条净值曲线上截取。
@@ -184,6 +185,62 @@ def evaluate_forward(panel: Panel, dev: dict) -> dict:
     return out
 
 
+# ---------------------------------------------------------------- 加入策略库
+
+PREREG_DOC = "docs/prereg/2026-10-31-cross-asset.md"
+LIBRARY_NAME = "资产配置（波动率倒数）"
+MEMBER_NAMES = {"510300.SH": "资产配置·沪深300", "511010.SH": "资产配置·国债",
+                "518880.SH": "资产配置·黄金", "513100.SH": "资产配置·纳指"}
+
+
+def add_to_library(s, user_id: int, follow_cash: float | None = CASH):
+    """把选中的方案 B 加入策略库：4 个只持有一只 ETF 的成员策略（公共、不设研究模型、不参加每晚优化）
+    + 一个波动率倒数配置的组合，都标记为预注册方案、参数冻结；follow_cash 不为 None 时开始实时跟踪。
+
+    会逐个提交成员策略。已经存在（同名的预注册组合）时直接返回，不重复创建。前瞻期评估用本模块的代码计算，与策略库中的记录无关。
+    """
+    from decimal import Decimal
+
+    from sqlalchemy import select
+
+    from app.core.timeutils import utcnow
+    from app.models.quant import QuantPortfolioRow
+    from app.quant import costs, live
+    from app.quant.service import create_strategy
+
+    for pf in s.scalars(select(QuantPortfolioRow).where(QuantPortfolioRow.user_id == user_id,
+                                                        QuantPortfolioRow.name == LIBRARY_NAME,
+                                                        QuantPortfolioRow.status == "active")):
+        if (pf.settings or {}).get("frozen"):
+            return pf
+    origin = {"kind": "prereg", "doc": PREREG_DOC, "research": "docs/research/2026-10-31-cross-asset.md",
+              "at": utcnow().isoformat(timespec="seconds")}
+    members = []
+    for symbol, name in MEMBER_NAMES.items():
+        with costs.fixed(costs.TradeCosts()):
+            st = create_strategy(
+                s, name=name, style="asset_alloc", universe_name=UNIVERSE, user_id=user_id, is_public=True,
+                spec=hold(symbol).model_dump(),
+                description=f"跨资产配置的成员：只持有 {symbol}（{ASSETS[symbol]}），"
+                            f"资金比例由组合「{LIBRARY_NAME}」决定。预注册研究的方案，参数冻结。",
+                title="预注册方案", reason="跨资产配置预注册研究（2026-10-31）选中的方案")
+        st.origin = origin
+        s.commit()                      # create_strategy 回测前会回滚未提交的事务，逐个提交
+        members.append({"strategy_id": st.id, "weight": 1.0})
+    _, alloc = plan("B")
+    pf = QuantPortfolioRow(
+        user_id=user_id, name=LIBRARY_NAME, members=members,
+        description="国债、黄金、A 股、美股 4 只 ETF，按过去 120 个交易日波动率的倒数分配资金（每 20 个交易日更新），"
+                    "平均约 73% 国债。低波动、小回撤的稳健配置，收益主要来自国债，今后年化大概率在 3%～5%。"
+                    "预注册研究的方案（开发期夏普 1.21、最大回撤 4.7%），成员与配置冻结；前瞻期约 2027 年 11 月评估。",
+        settings={"alloc": alloc.to_dict(), "frozen": {"doc": PREREG_DOC, "at": origin["at"]}})
+    s.add(pf)
+    s.flush()
+    if follow_cash is not None:
+        live.follow_portfolio(s, pf, user_id, Decimal(str(follow_cash)))
+    return pf
+
+
 # ---------------------------------------------------------------- 命令行
 
 
@@ -229,6 +286,18 @@ def main(argv: list[str]) -> int:
             print("留出期只看一次，已经运行过（结果在 xasset.json）")
             return 1
         data["holdout"] = evaluate_holdout(_panel(), data["dev"])
+    elif stage == "library":
+        if not ((data.get("dev") or {}).get("passed") and (data.get("holdout") or {}).get("passed")):
+            print("开发期与留出期都通过后才能加入策略库")
+            return 1
+        from app.core.config import DEFAULT_USER_ID
+        from app.db.session import get_sessionmaker
+
+        with get_sessionmaker()() as s:
+            pf = add_to_library(s, DEFAULT_USER_ID)
+            s.commit()
+            print(f"组合「{pf.name}」id={pf.id}，跟踪账户 {pf.follow_account_id}")
+        return 0
     elif stage == "forward":
         if not data.get("dev"):
             print("开发期还没有运行")

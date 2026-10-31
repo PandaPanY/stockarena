@@ -43,6 +43,10 @@ const factors = ref<FactorInfo[]>([])
 const industries = ref<string[]>([])
 let timer: number | undefined
 
+// 预注册研究的方案：参数冻结，不能优化、改规则或换冠军（可以另存后再改）
+const frozen = computed(() => detail.value?.origin?.kind === 'prereg')
+const repoLink = (path?: string) =>
+  auth.status?.source_url && path ? `${auth.status.source_url}/blob/main/${path}` : ''
 const running = computed(() => detail.value?.runs.some((r) => ['pending', 'running'].includes(r.status)) ?? false)
 
 async function load() {
@@ -355,7 +359,15 @@ function openReport() {
           </template>
           {{ detail.versions }} 个版本 · 股票池 {{ detail.universe_name }} · 基准 {{ detail.benchmark }}
         </p>
-        <p v-if="detail.origin?.kind === 'import'" class="muted">
+        <p v-if="frozen" class="muted">
+          <el-tag size="small" type="info">预注册·参数冻结</el-tag>
+          预注册研究选中的方案，不能优化、修改规则或更换冠军（想改动请另存为新策略）。
+          <a v-if="repoLink(detail.origin?.doc)" :href="repoLink(detail.origin?.doc)" target="_blank">预注册</a>
+          <a v-if="repoLink(detail.origin?.research)" :href="repoLink(detail.origin?.research)" target="_blank"
+            >研究报告</a
+          >
+        </p>
+        <p v-else-if="detail.origin?.kind === 'import'" class="muted">
           从策略文件导入（原策略「{{ detail.origin.strategy_name ?? '未知' }}」v{{
             detail.origin.version_number ?? '?'
           }}），继承测试历史：已检验候选 {{ detail.origin.prior_tests }} 个
@@ -371,17 +383,19 @@ function openReport() {
         </p>
       </div>
       <div v-if="detail.mine" class="actions">
-        <el-switch :model-value="detail.auto_optimize" active-text="每晚自动优化" @change="toggleAuto" />
-        <el-input-number v-model="rounds" :min="1" :max="50" size="small" style="width: 100px" />
-        <el-button type="primary" :disabled="running || !detail.provider_id" @click="startResearch"
-          >优化 {{ rounds }} 轮</el-button
-        >
+        <template v-if="!frozen">
+          <el-switch :model-value="detail.auto_optimize" active-text="每晚自动优化" @change="toggleAuto" />
+          <el-input-number v-model="rounds" :min="1" :max="50" size="small" style="width: 100px" />
+          <el-button type="primary" :disabled="running || !detail.provider_id" @click="startResearch"
+            >优化 {{ rounds }} 轮</el-button
+          >
+        </template>
         <el-dropdown trigger="click">
           <el-button :icon="'MoreFilled'" />
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item @click="openSettings">研究设置</el-dropdown-item>
-              <el-dropdown-item @click="openEditor(null)">手动编辑规则</el-dropdown-item>
+              <el-dropdown-item v-if="!frozen" @click="openEditor(null)">手动编辑规则</el-dropdown-item>
               <el-dropdown-item @click="openFork(null)">另存为新策略</el-dropdown-item>
               <el-dropdown-item @click="factorDialog = true">因子库</el-dropdown-item>
               <el-dropdown-item @click="openReport">策略体检报告</el-dropdown-item>
@@ -633,7 +647,7 @@ function openReport() {
         <div class="drawer-actions">
           <el-tag :type="STATUS_TYPE[current.status]">{{ STATUS_TEXT[current.status] }}</el-tag>
           <el-tag type="info">{{ SOURCE_TEXT[current.source] }}</el-tag>
-          <template v-if="detail.mine">
+          <template v-if="detail.mine && !frozen">
             <el-button v-if="current.status !== 'champion'" size="small" @click="promote(current)">设为冠军</el-button>
             <el-button size="small" @click="openEditor(current)">以此为基础编辑</el-button>
           </template>

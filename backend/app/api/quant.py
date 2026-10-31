@@ -575,6 +575,8 @@ def patch_strategy(sid: int, body: StrategyPatch, db: Session = Depends(get_db),
             st.settings = new.to_dict()
         except LabError as e:
             raise _err(e) from None
+    if data_.get("auto_optimize") and (reason := service.frozen_reason(st)):
+        raise HTTPException(400, reason)
     if data_.get("auto_optimize") and not st.auto_optimize:
         # 门槛已过严时用户仍要打开：记下「看过后选择继续」，每晚不再自动暂停
         outlook = service.upgrade_outlook(db, st)
@@ -646,6 +648,10 @@ async def manual_version(sid: int, body: ManualIn, user_id: int = Depends(curren
 def promote(vid: int, db: Session = Depends(get_db), user_id: int = Depends(current_user_id)) -> dict:
     v = _version(db, vid, user_id)
     st = _get(db, v.strategy_id, user_id)
+    try:
+        service.ensure_unfrozen(st)
+    except LabError as e:
+        raise _err(e) from None
     service.promote(db, st, v, "手动设为冠军")
     db.commit()
     return service.version_brief(v)
@@ -838,13 +844,17 @@ def create_portfolio(body: PortfolioIn, db: Session = Depends(get_db), user_id: 
 def patch_portfolio(pid: int, body: PortfolioIn, db: Session = Depends(get_db),
                     user_id: int = Depends(current_user_id)) -> dict:
     pf = _pf(db, pid, user_id)
+    if frozen := (pf.settings or {}).get("frozen"):
+        raise HTTPException(400, f"「{pf.name}」是预注册研究的方案（{frozen.get('doc')}），成员与资金配置冻结，"
+                                 "不能修改；想改动请新建组合")
     try:
         pf.members = portfolio.validate_members(db, body.members, user_id)
     except (LabError, KeyError, ValueError) as e:
         raise _err(e) from None
     pf.name, pf.description = body.name, body.description
     if body.settings is not None:
-        pf.settings = _pf_settings(body.settings)
+        # 只替换资金配置，保留 AI 复核等其他设置
+        pf.settings = {**(pf.settings or {}), **_pf_settings(body.settings)}
     db.commit()
     return pf_dict(db, pf)
 

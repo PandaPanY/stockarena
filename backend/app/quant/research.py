@@ -459,6 +459,9 @@ def _warm(strategy_id: int) -> None:
 
 
 def start_run(s, st: QuantStrategyRow, rounds: int | None = None, trigger: str = "manual") -> ResearchRunRow:
+    from app.quant.service import ensure_unfrozen
+
+    ensure_unfrozen(st)
     if st.provider_id is None:
         raise LabError("请先为策略设置研究模型（模型供应商与模型）")
     active = s.scalars(select(ResearchRunRow).where(ResearchRunRow.strategy_id == st.id,
@@ -478,6 +481,9 @@ def cancel(run_id: int) -> None:
 
 def evaluate_manual(s, st: QuantStrategyRow, spec: dict, title: str, rationale: str) -> QuantVersionRow:
     """用户手动编辑的规格：回测并检验，但不自动升级（用户可手动设为冠军）。"""
+    from app.quant.service import ensure_unfrozen
+
+    ensure_unfrozen(st)
     parsed = parse_spec(spec)
     result = evaluate_spec(s, st, parsed)
     s.rollback()        # 结束读事务，写入在短事务中完成

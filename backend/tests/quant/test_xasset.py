@@ -93,3 +93,62 @@ def test_costs_fixed_ignores_user_settings():
         assert costs.current() is mine
         with costs.use(5):
             assert costs.current() is mine                          # 固定的成本优先于用户设置
+
+
+def test_prereg_strategy_and_portfolio_are_frozen(lab, client):  # noqa: F811
+    from app.db.session import get_sessionmaker
+    from app.models.quant import QuantPortfolioRow, QuantStrategyRow
+    from tests.quant.test_lab import BAD, GOOD, _create
+
+    _, pid = lab
+    s1, s2 = _create(GOOD, pid), _create(BAD, pid)
+    with get_sessionmaker()() as s:
+        st = s.get(QuantStrategyRow, s1)
+        st.origin = {"kind": "prereg", "doc": xasset.PREREG_DOC}
+        vid = st.champion_id
+        s.commit()
+    for r in (client.post(f"/api/quant/strategies/{s1}/research", json={"rounds": 1}),
+              client.post(f"/api/quant/strategies/{s1}/versions", json={"spec": BAD}),
+              client.post(f"/api/quant/versions/{vid}/promote"),
+              client.patch(f"/api/quant/strategies/{s1}", json={"auto_optimize": True})):
+        assert r.status_code == 400 and "冻结" in r.json()["detail"]
+    assert client.patch(f"/api/quant/strategies/{s1}", json={"name": "改名"}).status_code == 200   # 名称可以改
+    fork = client.post(f"/api/quant/strategies/{s1}/fork", json={"name": "另存"})
+    with get_sessionmaker()() as s:                                 # 另存后不冻结（研究模型需另设）
+        forked = s.get(QuantStrategyRow, fork.json()["id"])
+        assert fork.status_code == 200 and (forked.origin or {}).get("kind") != "prereg"
+
+    body = {"name": "组合", "members": [{"strategy_id": s1, "weight": 1}, {"strategy_id": s2, "weight": 1}]}
+    p = client.post("/api/quant/portfolios", json=body).json()["id"]
+    with get_sessionmaker()() as s:
+        pf = s.get(QuantPortfolioRow, p)
+        pf.settings = {**pf.settings, "review": {"enabled": True}}
+        s.commit()
+    r = client.patch(f"/api/quant/portfolios/{p}", json=body | {"settings": {"alloc": {"method": "inverse_vol"}}})
+    assert r.status_code == 200 and r.json()["settings"]["review"] == {"enabled": True}   # 编辑不丢复核设置
+    with get_sessionmaker()() as s:
+        pf = s.get(QuantPortfolioRow, p)
+        pf.settings = {**pf.settings, "frozen": {"doc": xasset.PREREG_DOC}}
+        s.commit()
+    r = client.patch(f"/api/quant/portfolios/{p}", json=body)
+    assert r.status_code == 400 and "冻结" in r.json()["detail"]
+
+
+
+def test_add_to_library_creates_frozen_members_once(lab):  # noqa: F811
+    from app.db.session import get_sessionmaker
+    from app.models.quant import QuantStrategyRow
+
+    with get_sessionmaker()() as s:
+        pf = xasset.add_to_library(s, 1, follow_cash=None)
+        s.commit()
+        again = xasset.add_to_library(s, 1, follow_cash=None)
+        assert again.id == pf.id                                    # 不重复创建
+        assert pf.settings["alloc"]["method"] == "inverse_vol" and pf.settings["frozen"]["doc"] == xasset.PREREG_DOC
+        sts = [s.get(QuantStrategyRow, m["strategy_id"]) for m in pf.members]
+        assert [st.name for st in sts] == list(xasset.MEMBER_NAMES.values())
+        assert all(st.origin["kind"] == "prereg" and st.is_public and st.provider_id is None
+                   and not st.auto_optimize for st in sts)
+
+
+from tests.quant.test_lab import lab  # noqa: E402, F401

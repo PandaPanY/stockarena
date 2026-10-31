@@ -201,8 +201,11 @@ export interface Strategy {
 }
 
 export interface StrategyOrigin {
-  /** new：新建前在对话框里试算过；import：从策略文件导入；没有 kind 的是另存 */
-  kind?: 'new' | 'import'
+  /** new：新建前在对话框里试算过；import：从策略文件导入；prereg：预注册研究的方案（参数冻结）；没有 kind 的是另存 */
+  kind?: 'new' | 'import' | 'prereg'
+  /** prereg：预注册文件与研究报告在仓库中的路径 */
+  doc?: string
+  research?: string
   exported_at?: string
   strategy_id?: number
   strategy_name?: string
@@ -775,7 +778,8 @@ export interface Portfolio {
   members: PortfolioMember[]
   follow_account_id: number | null
   readiness: ReadinessBrief | null
-  settings: { alloc?: AllocSettings }
+  /** frozen：预注册研究的方案，成员与资金配置不能修改 */
+  settings: { alloc?: AllocSettings; frozen?: { doc: string; at: string } }
   created_at: string
 }
 

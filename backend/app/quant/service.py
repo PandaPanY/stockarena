@@ -298,6 +298,20 @@ def create_strategy(s: Session, *, name: str, style: str, description: str, spec
     return st
 
 
+def frozen_reason(st: QuantStrategyRow) -> str | None:
+    """预注册研究的方案（origin.kind = prereg）参数冻结：不能优化、手动改规则或换冠军，可以另存后再改。"""
+    o = st.origin or {}
+    if o.get("kind") != "prereg":
+        return None
+    return (f"「{st.name}」是预注册研究的方案（{o.get('doc')}），参数冻结，不能优化、修改规则或更换冠军；"
+            "想改动请另存为新策略")
+
+
+def ensure_unfrozen(st: QuantStrategyRow) -> None:
+    if reason := frozen_reason(st):
+        raise LabError(reason)
+
+
 AUTO_PAUSE_P = 0.002     # 下一轮候选的显著性门槛严于这个值时，每晚自动优化暂停（几乎不可能再升级）
 
 

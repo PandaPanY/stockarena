@@ -178,12 +178,16 @@ const allocLast = computed(() => rep.value?.alloc?.log?.at(-1) ?? null)
         <div v-loading="loading">
           <template v-if="current && rep">
             <div class="title">
-              <h3>{{ current.name }}</h3>
+              <h3>
+                {{ current.name }}
+                <el-tag v-if="current.settings?.frozen" size="small" type="info">预注册·冻结</el-tag>
+              </h3>
               <div>
-                <el-button size="small" @click="openEdit">编辑</el-button>
+                <el-button v-if="!current.settings?.frozen" size="small" @click="openEdit">编辑</el-button>
                 <el-button size="small" type="danger" text @click="remove">删除</el-button>
               </div>
             </div>
+            <p v-if="current.description" class="muted">{{ current.description }}</p>
             <el-tabs v-model="tab">
               <el-tab-pane label="回测报告" name="report">
                 <LabCurve :curves="rep.curves" :height="300" :name="current.name" />
