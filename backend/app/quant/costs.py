@@ -81,6 +81,7 @@ class TradeCosts:
 _by_user: dict[int, TradeCosts] = {}
 _lock = threading.Lock()
 _ctx_user: ContextVar[int | None] = ContextVar("costs_user", default=None)
+_ctx_fixed: ContextVar[TradeCosts | None] = ContextVar("costs_fixed", default=None)
 
 
 @contextmanager
@@ -91,6 +92,16 @@ def use(uid: int | None) -> Iterator[None]:
         yield
     finally:
         _ctx_user.reset(token)
+
+
+@contextmanager
+def fixed(costs: TradeCosts) -> Iterator[None]:
+    """在此范围内 current() 固定返回 costs，不读任何用户的设置（预注册研究按事先写定的成本计算）。"""
+    token = _ctx_fixed.set(costs)
+    try:
+        yield
+    finally:
+        _ctx_fixed.reset(token)
 
 
 def for_user(uid: int) -> TradeCosts:
@@ -106,6 +117,8 @@ def for_user(uid: int) -> TradeCosts:
 
 
 def current() -> TradeCosts:
+    if (pinned := _ctx_fixed.get()) is not None:
+        return pinned
     uid = _ctx_user.get()
     return for_user(DEFAULT_USER_ID if uid is None else uid)
 
