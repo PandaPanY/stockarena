@@ -58,7 +58,7 @@ async function checkNow() {
 
 const badJobs = computed(() => (st.value?.jobs ?? []).filter((j) => j.status && j.status !== 'ok'))
 const downModels = computed(() => (st.value?.models ?? []).filter((m) => (m.fails ?? 0) > 0))
-const diskLow = computed(() => (st.value?.disk.free_share ?? 1) < 0.1)
+const diskLow = computed(() => !!st.value && (st.value.disk.free_share < 0.05 || st.value.disk.free < 10 * 2 ** 30))
 </script>
 
 <template>

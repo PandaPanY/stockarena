@@ -5,7 +5,7 @@
 - westock 快照：开启时当天至少存下九成；
 - 每晚 AI 优化：当天没有失败的优化；
 - 模型供应商：没有连续失败中的模型；
-- 数据库备份：最近 30 小时内备份过；磁盘剩余空间不少于 10%。
+- 数据库备份：最近 30 小时内备份过；磁盘剩余空间不少于 5% 且不少于 10 GB。
 
 有问题时推送「数据完整性」提醒（同一天同样的问题只推一次），结果显示在系统状态页。
 """
@@ -24,7 +24,8 @@ from app.core.timeutils import to_market_time, utcnow
 
 logger = logging.getLogger(__name__)
 
-DISK_MIN_FREE = 0.10
+DISK_MIN_FREE = 0.05              # 磁盘剩余少于 5% 或少于 10 GB 时提醒（大磁盘按比例太早，小磁盘按容量太晚）
+DISK_MIN_GB = 10
 BACKUP_MAX_AGE_H = 30
 SNAPSHOT_MIN_SHARE = 0.9
 
@@ -139,7 +140,7 @@ def disk_status() -> dict:
 
 def disk_problems() -> list[str]:
     st = disk_status()
-    if st["free_share"] < DISK_MIN_FREE:
+    if st["free_share"] < DISK_MIN_FREE or st["free"] < DISK_MIN_GB * 2**30:
         return [f"磁盘空间：数据目录所在磁盘只剩 {st['free'] / 2**30:.0f} GB（{st['free_share']:.0%}）"]
     return []
 

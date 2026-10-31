@@ -84,6 +84,7 @@ def test_integrity_check(db, sent, monkeypatch):
     from app.models.market import TradingDayRow
 
     monkeypatch.setattr(integrity, "DISK_MIN_FREE", 0.0)
+    monkeypatch.setattr(integrity, "DISK_MIN_GB", 0)
     day = date(2026, 10, 30)
     with get_sessionmaker()() as s:
         s.add(TradingDayRow(market="CN", date=day))
