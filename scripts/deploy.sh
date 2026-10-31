@@ -7,7 +7,7 @@
 # 服务器上需要先安装 uv 和 systemd 用户服务（模板见 scripts/stockarena.service），详见 docs/DEPLOY.md。
 #
 # 步骤：检查工作区已提交 → 本地打包前端 → 上传到服务器的 .release 目录并检查完整
-#       → 停止服务并备份数据库（保留最近 10 份）→ 整体替换 backend、config、docs、scripts、frontend/dist
+#       → 停止服务并备份数据库（保留最近 3 份，每天的自动备份另外保存）→ 整体替换 backend、config、docs、scripts、frontend/dist
 #       → 在独立环境（backend/.venv，uv 管理的 Python 3.13）中同步依赖 → 启动服务并检查能否访问。
 # 替换是整目录替换，服务器上的代码与仓库完全一致（仓库里删掉的文件不会残留）。保留不动的只有：
 #   data/（数据库、日志、主密钥）、config/config.yaml（及 config.yaml.* 备份）、backend/.venv。
@@ -87,7 +87,7 @@ ssh "$HOST" "set -e
   mkdir -p ~/$DIR/data/backup
   if [ -f ~/$DIR/data/stockarena.db ]; then
     cp ~/$DIR/data/stockarena.db ~/$DIR/data/backup/stockarena-\$(date +%Y%m%d-%H%M%S).db
-    ls -1t ~/$DIR/data/backup/stockarena-*.db | tail -n +11 | xargs -r rm --
+    ls -1t ~/$DIR/data/backup/stockarena-*.db | tail -n +4 | xargs -r rm --
   fi"
 
 echo "== 替换代码（保留 data/、config/config.yaml、backend/.venv；上一版留在 .previous）"
