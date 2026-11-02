@@ -32,7 +32,7 @@ from app.models.skills import SkillRow
 logger = logging.getLogger(__name__)
 
 SKILL_NAME = "westockdata"
-UNIVERSE = "cn_csi300"                  # 先存沪深300（当前成分），观察一周没有被限流再扩到中证800
+UNIVERSE = "cn_csi800"                  # 中证800 当前成分（2026-11-02 起；之前两周只存沪深300，没有被限流）
 KINDS = ("consensus", "score")
 TIMEOUT_S = 60
 MAX_CONSECUTIVE_FAILS = 10

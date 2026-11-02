@@ -88,7 +88,7 @@ def _snapshots(s, day: date) -> list[str]:
     try:
         expected = len(snapshots.symbols_of()) * len(snapshots.KINDS)
     except Exception:  # noqa: BLE001 - 股票池读不到时按上次的规模估计
-        expected = 600
+        expected = 1600
     if n < expected * SNAPSHOT_MIN_SHARE:
         return [f"westock 快照：{day} 只存下 {n} / {expected} 条（只有当天值，过了今天补不回来）"]
     return []
