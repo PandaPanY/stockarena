@@ -324,7 +324,7 @@ start_run（手动或每晚 19:30）→ 全局锁（一次只跑一个研究，�
 | AI 对比 | `llm_providers`（API Key 加密存储）、`agents`（kind：llm / baseline / quant；quant 跟随策略或组合）、`prompt_templates`、`rule_sets` | 配置 |
 | | `tracks`、`accounts`、`positions`、`orders`、`fills`、`cash_ledger`、`nav_snapshots`、`rounds`、`decisions`、`events` | 赛道运行与账务（现金以流水为准，可对账） |
 | | `strategy_versions`、`reflections`、`consistency_checks`、`experiments` | 自我进化、一致性评估、进化实验 |
-| 推送 | `notify_channels`、`notifications` | 推送通道（Server 酱 / PushPlus / 企业微信机器人，密钥加密）与已发送记录（按通道 + 去重键去重） |
+| 推送 | `notify_channels`、`notifications` | 推送通道（Server 酱 / PushPlus / 企业微信、飞书、钉钉群机器人 / Telegram，密钥加密）与已发送记录（按通道 + 去重键去重） |
 | 研究数据 | `westock_snapshots` | westock 一致预期与个股评分的每日快照（只有当前值的数据，每天存一份供以后研究） |
 | 其他 | `users` | 用户（业务表均带 `user_id`） |
 | 其他 | `api_tokens` | 个人 API 令牌（MCP 服务用，只存哈希） |

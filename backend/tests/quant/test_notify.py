@@ -60,6 +60,47 @@ def test_send_request_formats():
     assert SCT not in str(e.value) and "bad key" in str(e.value)                            # 错误信息不含密钥
 
 
+FEISHU = "5b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0"
+DING = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+TG = "123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsawE"
+
+
+def test_validate_feishu_dingtalk_telegram():
+    assert channels.validate("feishu_bot", f"https://open.feishu.cn/open-apis/bot/v2/hook/{FEISHU}") == FEISHU
+    assert channels.validate("feishu_bot", f"https://open.larksuite.com/open-apis/bot/v2/hook/{FEISHU} # abc ") \
+        == f"lark:{FEISHU}#abc"
+    assert channels.validate("dingtalk_bot", f"https://oapi.dingtalk.com/robot/send?access_token={DING}#SECxyz") \
+        == f"{DING}#SECxyz"
+    assert channels.validate("telegram", f"{TG}#-1001234567890") == f"{TG}#-1001234567890"
+    for kind, bad in (("feishu_bot", "https://evil.example.com/open-apis/bot/v2/hook/" + FEISHU),
+                      ("dingtalk_bot", f"{DING}#abc"),                 # 加签密钥以 SEC 开头
+                      ("telegram", TG)):                               # 缺 chat id
+        with pytest.raises(channels.NotifyError):
+            channels.validate(kind, bad)
+
+
+def test_send_feishu_dingtalk_telegram():
+    log: list = []
+    channels.send("feishu_bot", f"lark:{FEISHU}#sig", "标题", "**内容**", _client(log, {"code": 0}))
+    body = json.loads(log[-1].content)
+    assert str(log[-1].url) == f"https://open.larksuite.com/open-apis/bot/v2/hook/{FEISHU}"
+    assert body["msg_type"] == "interactive" and body["card"]["elements"][0]["content"] == "**内容**"
+    assert body["sign"] and body["timestamp"]                           # 开启签名校验时带签名
+    channels.send("feishu_bot", FEISHU, "标题", "内容", _client(log, {"StatusCode": 0}))
+    assert "sign" not in json.loads(log[-1].content)
+    channels.send("dingtalk_bot", f"{DING}#SECxyz", "标题", "内容", _client(log, {"errcode": 0}))
+    url = log[-1].url
+    assert url.host == "oapi.dingtalk.com" and url.params["access_token"] == DING and url.params["sign"]
+    assert json.loads(log[-1].content)["markdown"]["title"] == "标题"
+    channels.send("telegram", f"{TG}#-100123", "标题", "**加粗**\n> 引用", _client(log, {"ok": True}))
+    body = json.loads(log[-1].content)
+    assert str(log[-1].url) == f"https://api.telegram.org/bot{TG}/sendMessage"
+    assert body["chat_id"] == "-100123" and body["text"] == "标题\n\n加粗\n引用"
+    with pytest.raises(channels.NotifyError) as e:
+        channels.send("telegram", f"{TG}#1", "t", "b", _client(log, {"ok": False, "description": "chat not found"}))
+    assert TG not in str(e.value) and "chat not found" in str(e.value)
+
+
 def test_channel_api_never_returns_secret(settings, client):
     r = client.post("/api/notify/channels", json={"name": "我的微信", "kind": "serverchan", "secret": SCT})
     assert r.status_code == 200, r.text

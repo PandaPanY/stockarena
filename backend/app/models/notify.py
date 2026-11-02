@@ -18,7 +18,7 @@ class NotifyChannelRow(TimestampMixin, UserOwnedMixin, Base):
     __tablename__ = "notify_channels"
 
     name: Mapped[str] = mapped_column(String(64))
-    kind: Mapped[str] = mapped_column(String(16))                         # serverchan / pushplus / wecom_bot
+    kind: Mapped[str] = mapped_column(String(16))                         # 见 app/notify/channels.py 的 KINDS
     secret_enc: Mapped[str] = mapped_column(Text)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     events: Mapped[list] = mapped_column(JSON, default=list)              # orders 调仓提醒 / errors 异常提醒

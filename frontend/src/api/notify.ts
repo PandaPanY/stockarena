@@ -1,6 +1,6 @@
 import { http } from './http'
 
-export type NotifyKind = 'serverchan' | 'pushplus' | 'wecom_bot'
+export type NotifyKind = 'serverchan' | 'pushplus' | 'wecom_bot' | 'feishu_bot' | 'dingtalk_bot' | 'telegram'
 export type NotifyEvent = 'orders' | 'errors' | 'health' | 'skills' | 'watch'
 
 export interface NotifyChannel {

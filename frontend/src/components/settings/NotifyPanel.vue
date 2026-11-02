@@ -32,6 +32,24 @@ const KINDS: Record<NotifyKind, { name: string; label: string; help: string; pla
     help: '在企业微信群里添加「群机器人」，复制 Webhook 地址。微信里可以通过企业微信接收，没有条数限制。',
     placeholder: 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=…',
   },
+  feishu_bot: {
+    name: '飞书群机器人',
+    label: 'Webhook 地址',
+    help: '在飞书群设置里添加「自定义机器人」，复制 Webhook 地址（Lark 也可以）。开启了「签名校验」时，在地址后面加 # 和签名密钥。',
+    placeholder: 'https://open.feishu.cn/open-apis/bot/v2/hook/…（签名校验：…#密钥）',
+  },
+  dingtalk_bot: {
+    name: '钉钉群机器人',
+    label: 'Webhook 地址',
+    help: '在钉钉群设置里添加「自定义机器人」，安全设置选「加签」，复制 Webhook 地址，后面加 # 和 SEC 开头的密钥。',
+    placeholder: 'https://oapi.dingtalk.com/robot/send?access_token=…#SEC…',
+  },
+  telegram: {
+    name: 'Telegram 机器人',
+    label: 'bot token#chat id',
+    help: '找 @BotFather 创建机器人得到 bot token；把机器人拉进群或先给它发一条消息，再查 chat id。服务器要能访问 api.telegram.org（国内需要代理）。',
+    placeholder: '123456789:AA…#-1001234567890',
+  },
 }
 const EVENTS: Record<NotifyEvent, string> = {
   orders: '调仓提醒',
