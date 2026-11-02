@@ -24,7 +24,8 @@ class ChannelIn(BaseModel):
     kind: str
     secret: str | None = Field(None, max_length=300, description="新建时必填；修改时留空表示不变")
     enabled: bool = True
-    events: list[str] = Field(default_factory=lambda: ["orders", "errors", "health", "skills", "watch"])
+    events: list[str] = Field(default_factory=lambda: ["orders", "errors", "health", "skills", "watch",
+                                                        "insight"])
 
 
 def _dict(ch: NotifyChannelRow) -> dict:

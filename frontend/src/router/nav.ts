@@ -15,6 +15,7 @@ export const navItems: NavItem[] = [
   { path: '/portfolios', title: '多风格组合', icon: 'PieChart' },
   { path: '/signals', title: '每日信号', icon: 'Bell' },
   { path: '/real', title: '实盘对照', icon: 'Wallet' },
+  { path: '/insight', title: 'AI 助手', icon: 'ChatDotRound' },
   { path: '/factors', title: '因子研究', icon: 'DataAnalysis' },
   {
     path: 'arena',

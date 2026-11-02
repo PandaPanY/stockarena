@@ -42,7 +42,7 @@ from app.notify import channels
 logger = logging.getLogger(__name__)
 
 EVENTS = {"orders": "调仓提醒", "errors": "异常提醒", "health": "健康度与可实盘", "skills": "技能申请",
-          "watch": "自选股提醒"}
+          "watch": "自选股提醒", "insight": "AI 每周点评"}
 MAX_LINES = 60
 SIDE = {"buy": "买入", "sell": "卖出", "short": "卖空", "cover": "平空"}
 

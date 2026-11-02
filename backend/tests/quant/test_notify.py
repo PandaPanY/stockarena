@@ -106,7 +106,7 @@ def test_channel_api_never_returns_secret(settings, client):
     assert r.status_code == 200, r.text
     ch = r.json()
     assert SCT not in json.dumps(ch) and ch["secret_masked"].endswith(SCT[-4:])
-    assert ch["events"] == ["orders", "errors", "health", "skills", "watch"]
+    assert ch["events"] == ["orders", "errors", "health", "skills", "watch", "insight"]
     bad = {"name": "x", "kind": "serverchan", "secret": "bad"}
     assert client.post("/api/notify/channels", json=bad).status_code == 400
     r = client.patch(f"/api/notify/channels/{ch['id']}", json={"name": "改名", "kind": "serverchan", "enabled": False,

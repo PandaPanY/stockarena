@@ -33,7 +33,8 @@ NOT_RECOVERABLE = {"westock_snapshot": "westock 快照（只有当天值，补�
                    "watch_daily": "自选股监控（下一次照常运行）",
                    "notify": "调仓提醒（启动补跑完成后可在页面查看当天的调仓清单）",
                    "ops_backup": "数据库备份（下一次照常运行）",
-                   "ops_integrity": "每日完整性检查（启动后会单独检查一次）"}
+                   "ops_integrity": "每日完整性检查（启动后会单独检查一次）",
+                   "insight": "AI 每周点评与偏差分析（可在 AI 助手页手动生成）"}
 
 
 def _file():

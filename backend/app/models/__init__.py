@@ -21,6 +21,7 @@ from app.models.arena import (
     TrackRow,
 )
 from app.models.base import DEFAULT_USER_ID, Base
+from app.models.insight import AiNoteRow
 from app.models.market import (
     CorporateActionRow,
     DailyBarRow,
@@ -50,6 +51,7 @@ from app.models.watch import WatchEventRow, WatchItemRow
 
 __all__ = [
     "AccountRow",
+    "AiNoteRow",
     "AgentRow",
     "AppSettingRow",
     "SkillCallRow",

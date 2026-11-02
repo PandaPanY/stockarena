@@ -57,6 +57,7 @@ const EVENTS: Record<NotifyEvent, string> = {
   health: '健康度与可实盘',
   skills: '技能申请',
   watch: '自选股提醒',
+  insight: 'AI 每周点评',
 }
 
 async function load() {

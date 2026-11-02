@@ -21,6 +21,7 @@ from app.api import (
     auth,
     experiments,
     home,
+    insight,
     meta,
     notify,
     providers,
@@ -152,7 +153,7 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=502, content={"detail": f"行情数据源暂时不可用：{exc}"})
 
     for module in (auth, system, providers, agents, meta, tracks, accounts, experiments, quant, notify, skills, stocks,
-                   home, watch, mcp_server):
+                   home, watch, insight, mcp_server):
         app.include_router(module.router)
 
     dist = settings.frontend_dist

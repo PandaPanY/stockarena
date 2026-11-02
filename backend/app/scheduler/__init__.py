@@ -64,6 +64,12 @@ async def run_quant_nightly() -> None:
     await nightly()
 
 
+async def run_insight(kind: str) -> None:
+    from app.insight.notes import scheduled
+
+    await scheduled(kind)
+
+
 async def run_backup() -> None:
     from app.ops.backup import scheduled
 
@@ -110,6 +116,14 @@ def register_jobs(startup_catch_up_delay_s: int = 20) -> None:
                           id=f"westock_snapshot_{hour:02d}{minute:02d}",
                           name=f"westock 数据快照 {hour:02d}:{minute:02d}（Asia/Shanghai）", replace_existing=True,
                           misfire_grace_time=1800, coalesce=True, max_instances=1)
+    # AI 洞察（app/insight）：交易日 21:40 为健康度「提醒」的跟踪账户写偏差分析（调仓提醒之后）；
+    # 每周六 09:00 写每周点评（本周行情都已入库）
+    scheduler.add_job(run_insight, CronTrigger(day_of_week="mon-fri", hour=21, minute=40, timezone="Asia/Shanghai"),
+                      args=["deviation"], id="insight_deviation", name="AI 偏差分析 21:40（Asia/Shanghai）",
+                      replace_existing=True, misfire_grace_time=3600, coalesce=True, max_instances=1)
+    scheduler.add_job(run_insight, CronTrigger(day_of_week="sat", hour=9, minute=0, timezone="Asia/Shanghai"),
+                      args=["weekly"], id="insight_weekly", name="AI 每周点评 周六 09:00（Asia/Shanghai）",
+                      replace_existing=True, misfire_grace_time=6 * 3600, coalesce=True, max_instances=1)
     # 运行保障（app/ops）：每天 02:30 备份数据库；交易日 23:50 检查当天数据是否完整（westock 补查之后）
     scheduler.add_job(run_backup, CronTrigger(hour=2, minute=30, timezone="Asia/Shanghai"),
                       id="ops_backup", name="数据库备份 02:30（Asia/Shanghai）", replace_existing=True,

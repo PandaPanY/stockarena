@@ -14,6 +14,7 @@ const router = createRouter({
         { path: '', name: 'home', component: () => import('@/views/HomeView.vue') },
         { path: 'lab', name: 'lab', component: () => import('@/views/LabView.vue') },
         { path: 'watch', name: 'watch', component: () => import('@/views/WatchView.vue') },
+        { path: 'insight', name: 'insight', component: () => import('@/views/InsightView.vue') },
         { path: 'lab/:id', name: 'strategy', component: () => import('@/views/StrategyDetailView.vue') },
         { path: 'portfolios', name: 'portfolios', component: () => import('@/views/PortfoliosView.vue') },
         { path: 'factors', name: 'factors', component: () => import('@/views/FactorsView.vue') },
