@@ -84,12 +84,21 @@ def jobs(_: int = Depends(require_admin)) -> list[JobInfo]:
 # ---------------------------------------------------------------- 运行保障（app/ops）
 
 
+def _model_health(db, p) -> dict:
+    from app.llm import health
+
+    st = {k: v for k, v in health.get(db, p.id).items() if k in ("fails", "last_error", "last_ok_at", "down_since")}
+    out = {"id": p.id, "name": p.name, "where": health.where(p), **st}
+    if st.get("fails"):
+        out["hint"] = health.hint(st.get("last_error"), p.base_url)
+    return out
+
+
 @router.get("/ops")
 def ops_status(db: Session = Depends(get_db), _: int = Depends(require_admin)) -> dict:
     """运行状况：最近一次停机、定时任务最近结果、每日完整性检查、备份与磁盘、模型与推送通道。"""
     from datetime import timedelta
 
-    from app.llm import health
     from app.models import LLMProviderRow, NotificationRow
     from app.ops import backup, downtime, get_state, integrity
 
@@ -117,9 +126,7 @@ def ops_status(db: Session = Depends(get_db), _: int = Depends(require_admin)) -
             "keep": get_settings().backup_keep, "extra_dir": str(get_settings().backup_dir or "") or None},
         "disk": integrity.disk_status(),
         "heartbeat": downtime.ping_status(),
-        "models": [{"id": p.id, "name": p.name, **{k: v for k, v in health.get(db, p.id).items()
-                                                    if k in ("fails", "last_error", "last_ok_at", "down_since")}}
-                   for p in db.scalars(select(LLMProviderRow).order_by(LLMProviderRow.id))],
+        "models": [_model_health(db, p) for p in db.scalars(select(LLMProviderRow).order_by(LLMProviderRow.id))],
         "failed_sends": failed_sends,
     }
 

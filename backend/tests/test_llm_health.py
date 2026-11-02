@@ -36,13 +36,14 @@ def test_alert_after_consecutive_failures_and_recovery(db, sent):
     health.record(pid, False, "无法连接模型服务：Connection error.")
     assert len(sent) == 1 and sent[0].event == "errors" and "模型不可用" in sent[0].title
     assert "Connection error" in sent[0].body
+    assert "m @ 127.0.0.1:1" in sent[0].body and "本地模型服务" in sent[0].body and "北京时间" in sent[0].body
     health.record(pid, False, "还是连不上")                     # 同一次故障只提醒一次
     assert len(sent) == 1
     with get_sessionmaker()() as s:
         st = health.get(s, pid)
         assert st["fails"] == health.FAIL_ALERT + 1 and st["alerted"] and st["down_since"]
     health.record(pid, True)
-    assert len(sent) == 2 and "恢复" in sent[1].title
+    assert len(sent) == 2 and "恢复" in sent[1].title and "北京时间" in sent[1].body and "UTC" not in sent[1].body
     with get_sessionmaker()() as s:
         st = health.get(s, pid)
         assert st["fails"] == 0 and not st["alerted"] and "down_since" not in st
@@ -85,3 +86,17 @@ def test_usages_replace_and_delete_guard(lab, client, sent):  # noqa: F811
 
 
 from tests.quant.test_lab import lab  # noqa: E402, F401
+
+
+def test_hint_by_error_and_host():
+    cloud, lan = "https://api.deepseek.com/v1", "http://192.168.1.5:8080/v1"
+    assert "余额" in health.hint("接口返回错误（402）：Insufficient Balance", cloud)
+    assert "密钥" in health.hint("Error code: 401 - invalid api key", lan)
+    assert "限流" in health.hint("429 Too Many Requests", cloud)
+    assert "本地模型服务" in health.hint("请求超时", lan)
+    assert "本地模型服务" in health.hint("503 Service Unavailable", "http://localhost:11434/v1")
+    assert "状态页" in health.hint("503 Service Unavailable", cloud)
+    p = LLMProviderRow(name="x", protocol="openai_compatible", base_url=cloud, default_model="deepseek-flash")
+    assert health.where(p) == "deepseek-flash @ api.deepseek.com"
+    p.base_url = None
+    assert health.where(p) == "deepseek-flash @ 官方接口"

@@ -75,7 +75,16 @@ export interface OpsStatus {
     error?: string | null
     ok_at?: string
   }
-  models: { id: number; name: string; fails?: number; last_error?: string; last_ok_at?: string; down_since?: string }[]
+  models: {
+    id: number
+    name: string
+    where: string
+    fails?: number
+    last_error?: string
+    last_ok_at?: string
+    down_since?: string
+    hint?: string
+  }[]
   failed_sends: { title: string; error: string; at: string }[]
 }
 

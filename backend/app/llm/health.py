@@ -11,9 +11,11 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
 import threading
 import time
+from urllib.parse import urlsplit
 
 from app.core.timeutils import utcnow
 from app.llm.base import ChatRequest, ChatResponse, LLMClient, LLMError
@@ -91,12 +93,66 @@ def record(provider_id: int, ok: bool, error: str | None = None) -> None:
             logger.exception("模型健康提醒发送失败")
 
 
+def _bj(stamp: str | None) -> str:
+    """UTC 时间戳 → 北京时间「月-日 时:分」。"""
+    from datetime import datetime
+
+    from app.core.timeutils import to_market_time
+
+    if not stamp:
+        return "-"
+    try:
+        return to_market_time(datetime.fromisoformat(stamp), "CN").strftime("%m-%d %H:%M")
+    except ValueError:
+        return stamp
+
+
+def _is_local(host: str | None) -> bool:
+    """本机或局域网里的模型服务（自己部署的 llama.cpp、Ollama 等）。"""
+    if not host:
+        return False
+    if host == "localhost" or host.endswith((".local", ".lan", ".localhost")):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return ip.is_private or ip.is_loopback
+
+
+def where(prov) -> str:
+    """「模型 @ 主机:端口」：推送里说明是哪个服务出了问题（只取主机和端口，不带路径和参数）。"""
+    parts = urlsplit(prov.base_url or "")
+    host = parts.hostname
+    addr = f"{host}:{parts.port}" if host and parts.port else (host or "官方接口")
+    return f"{prov.default_model} @ {addr}"
+
+
+def hint(error: str | None, base_url: str | None) -> str:
+    """按错误内容给出最可能的原因和处理办法。"""
+    e = (error or "").lower()
+    if "402" in e or "insufficient balance" in e or "余额" in e or "quota" in e:
+        return "账户余额或额度用完：到模型供应商的网站充值或提高额度。"
+    if any(k in e for k in ("401", "403", "unauthorized", "invalid api key", "authentication", "permission")):
+        return "密钥无效、过期或没有权限：在「配置中心 → 模型供应商」重新填写 API Key。"
+    if "429" in e or "rate limit" in e or "too many requests" in e:
+        return "被限流：通常会自动恢复；经常出现时减少同时进行的研究或复核。"
+    if "404" in e and "model" in e:
+        return "模型名不存在：检查供应商设置里的模型名是否与服务上的一致。"
+    if _is_local(urlsplit(base_url or "").hostname):
+        return ("本地模型服务没有正常响应：到运行模型的机器上检查模型进程是否还在、显卡是否卡住，必要时重启模型服务。"
+                "整台机器卡住时平台自己也可能停止运行（可配置外部心跳，见部署指南）。")
+    return "模型服务连不上或出错：可能是服务故障或网络问题，可以看供应商的状态页，稍后会自动重试。"
+
+
 def _down_message(s, prov, state: dict):
     from app.llm.usage import usage_lines, usages
     from app.notify.service import Message, settings_link
 
-    lines = [f"**{prov.name}** 连续 {state['fails']} 次调用失败，最近一次错误：", "",
-             f"> {state.get('last_error') or '未知'}", "", "用到这个模型的地方：", ""]
+    lines = [f"**{prov.name}**（{where(prov)}）从 {_bj(state.get('down_since'))}（北京时间）起连续 "
+             f"{state['fails']} 次调用失败，最近一次错误：", "",
+             f"> {state.get('last_error') or '未知'}", "",
+             f"可能的原因：{hint(state.get('last_error'), prov.base_url)}", "", "用到这个模型的地方：", ""]
     lines += usage_lines(usages(s, prov.id)) or ["- （目前没有功能在用）"]
     lines += ["", "模型无法恢复时：在「配置中心 → 模型供应商」点「用到的地方」，可以把 AI 优化、自选股监控等"
               "一次换成其他模型；AI 交易复核需要在组合页单独「更换复核模型」（会开始新的一段评估）。"]
@@ -111,7 +167,8 @@ def _down_message(s, prov, state: dict):
 def _up_message(prov, prev: dict):
     from app.notify.service import Message
 
-    body = f"**{prov.name}** 自 {prev.get('down_since') or '-'}（UTC）起连续失败 {prev.get('fails')} 次，现已恢复。"
+    body = (f"**{prov.name}**（{where(prov)}）自 {_bj(prev.get('down_since'))}（北京时间）起连续失败 "
+            f"{prev.get('fails')} 次，现已恢复。")
     return Message("errors", f"llm-up:{prov.id}:{prev.get('down_since')}", f"【模型恢复】{prov.name} 调用恢复正常",
                    body, user_id=prov.user_id)
 

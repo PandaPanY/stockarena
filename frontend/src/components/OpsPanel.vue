@@ -158,7 +158,8 @@ const diskLow = computed(() => !!st.value && (st.value.disk.free_share < 0.05 ||
           <template v-if="downModels.length">
             <div v-for="m in downModels" :key="m.id">
               <el-tag type="danger" size="small">{{ m.name }} 连续失败 {{ m.fails }} 次</el-tag>
-              <span class="muted small">{{ m.last_error }}</span>
+              <span class="muted small">{{ m.where }}；{{ m.last_error }}</span>
+              <div v-if="m.hint" class="muted small">可能的原因：{{ m.hint }}</div>
             </div>
           </template>
           <span v-else class="muted">{{ st.models.length ? '全部正常' : '没有配置模型' }}</span>
