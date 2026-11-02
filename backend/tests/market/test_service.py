@@ -66,13 +66,32 @@ def test_update_bars_incremental(session):
     svc.upsert_instruments([INST])
     assert svc.update_bars([INST], until=date(2026, 7, 9), history_start=date(2026, 7, 1)) == {INST.symbol: "ok"}
     assert svc.update_bars([INST], until=date(2026, 7, 10), history_start=date(2026, 7, 1)) == {INST.symbol: "ok"}
-    # 第二次只请求缺失的日期
-    assert provider.calls == [(date(2026, 7, 1), date(2026, 7, 9)), (date(2026, 7, 10), date(2026, 7, 10))]
+    # 第二次只请求缺失的日期，外加缓存的最后一天（用来对齐复权因子）
+    assert provider.calls == [(date(2026, 7, 1), date(2026, 7, 9)), (date(2026, 7, 9), date(2026, 7, 10))]
     assert svc.update_bars([INST], until=date(2026, 7, 10), history_start=date(2026, 7, 1)) == {
         INST.symbol: "up-to-date"}
     bars = svc.get_bars(INST.symbol, date(2026, 7, 1), date(2026, 7, 31))
     assert [b.close for b in bars] == [Decimal("37.94"), Decimal("37.55"), Decimal("36.55")]
     assert svc.get_instrument(INST.symbol).price_limit_pct == Decimal("0.10")
+
+
+def test_factors_aligned_when_source_base_differs(session):
+    """换了复权因子起算基准不同的数据源（如 Tushare 从本次拉取的第一天起算）：按重叠日换算到缓存的基准，
+    后复权价连续；向前补历史时同样按缓存的第一天对齐。"""
+    provider = FakeProvider()
+    svc = MarketDataService(session, provider)
+    svc.upsert_instruments([INST])
+    svc.update_bars([INST], until=date(2026, 7, 9), history_start=date(2026, 7, 8))       # 新浪口径：6.5
+    provider.bars = [_bar(date(2026, 7, 9), "37.55", "1"), _bar(date(2026, 7, 10), "36.55", "1.0262")]
+    svc.update_bars([INST], until=date(2026, 7, 10), history_start=date(2026, 7, 1))
+    f = {b.date: b.adj_factor for b in svc.get_bars(INST.symbol, date(2026, 7, 1), date(2026, 7, 31))}
+    assert f[date(2026, 7, 9)] == Decimal("6.5") and f[date(2026, 7, 10)] == Decimal("6.6703000000")
+
+    provider.bars = [_bar(date(2026, 7, 6), "38", "2"), _bar(date(2026, 7, 7), "38", "2"),
+                     _bar(date(2026, 7, 8), "37.94", "2")]
+    assert svc.backfill_bars([INST], date(2026, 6, 30)) == {INST.symbol: "ok: 2"}
+    f = {b.date: b.adj_factor for b in svc.get_bars(INST.symbol, date(2026, 7, 1), date(2026, 7, 31))}
+    assert f[date(2026, 7, 6)] == Decimal("6.5") and f[date(2026, 7, 8)] == Decimal("6.5")    # 缓存的第一天不改
 
 
 def test_update_bars_refreshes_recent_etf_days(session):

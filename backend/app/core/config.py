@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 from pydantic_settings import (
@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     # 见 docs/DEPLOY.md
     backup_keep: int = 7
     backup_dir: Path | None = None
+
+    # A股行情数据源：auto = 新浪 / 腾讯为主、失败时改用 Tushare（填了 tushare_token 时）；akshare = 只用新浪 / 腾讯；
+    # tushare = Tushare 为主、失败时改用新浪 / 腾讯。tushare_token 在 tushare.pro 注册后获取，见 docs/DATA_SOURCES.md
+    cn_data_source: Literal["auto", "akshare", "tushare"] = "auto"
+    tushare_token: str | None = None
 
     # 外部心跳：服务正常时每 5 分钟访问一次这个地址（如 healthchecks.io 的 ping 地址、Uptime Kuma 的推送地址）。
     # 整台机器卡死或断网时平台自己的推送也发不出去，由外部服务在收不到报到时通知你，见 docs/DEPLOY.md

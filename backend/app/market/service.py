@@ -5,9 +5,11 @@
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 from collections.abc import Callable, Iterable
 from datetime import date, timedelta
+from decimal import Decimal
 from typing import Protocol
 
 import pandas as pd
@@ -161,8 +163,30 @@ class MarketDataService:
     def last_bar_date(self, symbol: str) -> date | None:
         return self.session.scalar(select(func.max(DailyBarRow.date)).where(DailyBarRow.symbol == symbol))
 
+    def _align_factors(self, symbol: str, bars: list[DailyBar]) -> list[DailyBar]:
+        """把新拉到的日线的复权因子换算到缓存的基准：不同数据源的起算基准不同（新浪从上市日起算，
+        Tushare 从本次拉取的第一天起算），按与缓存重叠的第一天对齐，避免后复权价在衔接处跳变。没有重叠时原样返回。"""
+        if not bars:
+            return bars
+        row = self.session.scalars(
+            select(DailyBarRow).where(DailyBarRow.symbol == symbol, DailyBarRow.date.in_([b.date for b in bars]))
+            .order_by(DailyBarRow.date).limit(1)).first()
+        if row is None:
+            return bars
+        new = next(b for b in bars if b.date == row.date)
+        if new.adj_factor <= 0 or new.adj_factor == row.adj_factor:
+            return bars
+        ratio = row.adj_factor / new.adj_factor
+        if abs(ratio - 1) < Decimal("1e-9"):
+            return bars
+        logger.info("%s 复权因子按 %s 与缓存对齐（× %s）", symbol, row.date, ratio)
+        return [dataclasses.replace(b, adj_factor=(b.adj_factor * ratio).quantize(Decimal("0.0000000001")))
+                for b in bars]
+
     def update_bars(self, instruments: Iterable[Instrument], until: date, history_start: date) -> dict[str, str]:
-        """增量更新日线缓存到 until（含）。返回 {symbol: "ok" / "up-to-date" / 错误信息}。"""
+        """增量更新日线缓存到 until（含）。返回 {symbol: "ok" / "up-to-date" / 错误信息}。
+
+        有缓存时从缓存的最后一天起拉（多拉一天），用来对齐复权因子（见 _align_factors）。"""
         result: dict[str, str] = {}
         for inst in instruments:
             last = self.last_bar_date(inst.symbol)
@@ -170,6 +194,8 @@ class MarketDataService:
             if start > until:
                 result[inst.symbol] = "up-to-date"
                 continue
+            if last:
+                start = last
             if last and inst.type in ("etf", "lof"):
                 # 新浪 ETF 历史比实际晚一天，最近的日线可能是用腾讯补的（见 akshare_cn._fund_recent_tx）；
                 # 有新数据要拉时顺带重拉最近一周，用新浪的正式数据（含分红推算的复权因子）覆盖
@@ -181,6 +207,7 @@ class MarketDataService:
                 result[inst.symbol] = f"error: {e}"
                 self._checkpoint()
                 continue
+            bars = self._align_factors(inst.symbol, bars)
             for b in bars:
                 self.session.merge(DailyBarRow(
                     symbol=b.symbol, date=b.date, open=b.open, high=b.high, low=b.low, close=b.close,
@@ -204,13 +231,14 @@ class MarketDataService:
                 continue
             if first > start + timedelta(days=7):
                 try:
+                    # 拉到缓存的第一天为止（多拉一天），用来对齐复权因子
                     bars = self._track(f"{self.market}.daily_bars",
-                                       lambda inst=inst, first=first: self.provider.daily_bars(
-                                           inst, start, first - timedelta(days=1)))
+                                       lambda inst=inst, first=first: self.provider.daily_bars(inst, start, first))
                 except Exception as e:
                     result[inst.symbol] = f"error: {e}"
                     self._checkpoint()
                     continue
+                bars = [b for b in self._align_factors(inst.symbol, bars) if b.date < first]
                 for b in bars:
                     self.session.merge(DailyBarRow(
                         symbol=b.symbol, date=b.date, open=b.open, high=b.high, low=b.low, close=b.close,

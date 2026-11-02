@@ -21,8 +21,25 @@ MARKET_INFO = {code: {"name": m.name, "currency": m.currency, "tz": m.tz} for co
 
 
 @lru_cache
-def cn_provider() -> AkshareCNProvider:
-    return AkshareCNProvider()
+def cn_provider():
+    """A股数据源（配置 cn_data_source、tushare_token）：默认新浪 / 腾讯，填了 Tushare token 时失败自动改用 Tushare。"""
+    import logging
+
+    from app.market.providers.fallback import FallbackProvider
+    from app.market.providers.tushare_cn import TushareCNProvider
+
+    settings = get_settings()
+    sina = AkshareCNProvider()
+    if settings.cn_data_source == "akshare":
+        return sina
+    if not settings.tushare_token:
+        if settings.cn_data_source == "tushare":
+            logging.getLogger(__name__).warning("cn_data_source=tushare 但没有设置 tushare_token，改用新浪 / 腾讯")
+        return sina
+    tushare = TushareCNProvider(settings.tushare_token)
+    if settings.cn_data_source == "tushare":
+        return FallbackProvider(tushare, sina)
+    return FallbackProvider(sina, tushare)
 
 
 @lru_cache
