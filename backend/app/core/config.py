@@ -73,6 +73,10 @@ class Settings(BaseSettings):
     backup_keep: int = 7
     backup_dir: Path | None = None
 
+    # 外部心跳：服务正常时每 5 分钟访问一次这个地址（如 healthchecks.io 的 ping 地址、Uptime Kuma 的推送地址）。
+    # 整台机器卡死或断网时平台自己的推送也发不出去，由外部服务在收不到报到时通知你，见 docs/DEPLOY.md
+    heartbeat_url: str | None = None
+
     # MCP 服务（/api/mcp）：AI 客户端用个人 API 令牌查询和研究策略（见 docs/MCP.md）
     mcp_enabled: bool = True
 

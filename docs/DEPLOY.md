@@ -193,6 +193,27 @@ gunzip -c data/backup/daily/stockarena-20261031-0230.db.gz > data/stockarena.db
 
 （先停止服务；恢复前把现在的 `stockarena.db` 改名留着。）
 
+### 外部心跳：机器卡死时也能收到通知
+
+平台的停机提醒、完整性检查都跑在同一台机器上：整台机器卡死（例如显卡驱动卡住）、断电或断网时，它自己发不出任何推送，要等重启后才知道。外部心跳由**另一处的服务**负责报警：平台正常时每 5 分钟访问一次你给的地址，报到中断就由外部服务通知你。
+
+只在数据库可用、定时任务在运行时才报到。数据库锁死、调度停了，也会表现为「报到中断」。
+
+以 [healthchecks.io](https://healthchecks.io)（免费额度足够）为例：
+
+1. 注册后新建一个 Check，Period 设 5 分钟、Grace 设 10 分钟，在 Integrations 里选通知方式（邮件、Telegram、Webhook 等）。
+2. 复制它的 ping 地址（形如 `https://hc-ping.com/<一串 id>`），写进 `config/config.yaml`：
+
+   ```yaml
+   heartbeat_url: https://hc-ping.com/<一串 id>
+   ```
+
+3. 重启服务。「系统状态 → 运行状况 → 外部心跳」显示「正常」，healthchecks.io 上的 Check 变绿。
+
+自己部署的 [Uptime Kuma](https://github.com/louislam/uptime-kuma) 也可以：新建 Push 类型的监控，把它的推送地址填进 `heartbeat_url`。注意要部署在**另一台机器**上，和平台在同一台机器上就失去了意义。
+
+地址里的 id 相当于密钥：别人拿到后可以替你报到，掩盖真实的停机。页面上只显示主机名。
+
 ## 7. 升级
 
 ```bash

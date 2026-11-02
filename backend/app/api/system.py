@@ -91,7 +91,7 @@ def ops_status(db: Session = Depends(get_db), _: int = Depends(require_admin)) -
 
     from app.llm import health
     from app.models import LLMProviderRow, NotificationRow
-    from app.ops import backup, get_state, integrity
+    from app.ops import backup, downtime, get_state, integrity
 
     recent = get_state(db, "jobs")
     jobs_out = []
@@ -116,6 +116,7 @@ def ops_status(db: Session = Depends(get_db), _: int = Depends(require_admin)) -
             "files": [{"name": f.name, "size": f.stat().st_size} for f in files[:10]],
             "keep": get_settings().backup_keep, "extra_dir": str(get_settings().backup_dir or "") or None},
         "disk": integrity.disk_status(),
+        "heartbeat": downtime.ping_status(),
         "models": [{"id": p.id, "name": p.name, **{k: v for k, v in health.get(db, p.id).items()
                                                     if k in ("fails", "last_error", "last_ok_at", "down_since")}}
                    for p in db.scalars(select(LLMProviderRow).order_by(LLMProviderRow.id))],

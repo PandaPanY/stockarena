@@ -122,11 +122,55 @@ def test_integrity_finds_missing_nav_and_failed_reviews(arena, sent, monkeypatch
     assert any("全部复核失败" in p for p in probs)
 
 
+def test_external_heartbeat(db, monkeypatch):
+    import httpx
+
+    calls = []
+
+    class Resp:
+        def raise_for_status(self):
+            return None
+
+    def fake_get(url, timeout):
+        calls.append(url)
+        if fail:
+            raise httpx.ConnectError("连不上")
+        return Resp()
+
+    fail = False
+    monkeypatch.setattr(downtime, "_last_ping", {})
+    monkeypatch.setattr(downtime.httpx, "get", fake_get)
+    assert downtime.ping() is None and not calls                          # 未配置：不报到
+    assert downtime.ping_status()["host"] is None
+
+    monkeypatch.setenv("SA_HEARTBEAT_URL", "https://hc-ping.com/abc-123")
+    get_settings.cache_clear()
+    r = downtime.ping()
+    assert r["ok"] and calls == ["https://hc-ping.com/abc-123"]
+    st = downtime.ping_status()
+    assert st["host"] == "hc-ping.com" and "abc" not in str(st)          # 页面只显示主机名
+
+    fail = True
+    r = downtime.ping()
+    assert not r["ok"] and "hc-ping.com" in r["error"] and r["ok_at"] == st["ok_at"]
+
+    # 数据库不可用：不报到，让外部服务按超时报警
+    fail = False
+    import app.db.session as session
+
+    def broken():
+        raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(session, "get_sessionmaker", broken)
+    r = downtime.ping()
+    assert not r["ok"] and "数据库" in r["error"] and len(calls) == 2
+
+
 def test_ops_api(client, db):
     r = client.get("/api/system/ops")
     assert r.status_code == 200
     body = r.json()
-    assert {"downtime", "jobs", "integrity", "backup", "disk", "models", "failed_sends"} <= set(body)
+    assert {"downtime", "jobs", "integrity", "backup", "disk", "models", "failed_sends", "heartbeat"} <= set(body)
     assert body["disk"]["total"] > 0
     r = client.post("/api/system/ops/backup")
     assert r.status_code == 200 and r.json()["size"] > 0

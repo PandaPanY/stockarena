@@ -135,6 +135,25 @@ const diskLow = computed(() => !!st.value && (st.value.disk.free_share < 0.05 ||
         </div>
 
         <div class="item">
+          <div class="label">外部心跳</div>
+          <template v-if="st.heartbeat.host">
+            <el-tag v-if="st.heartbeat.at" :type="st.heartbeat.ok ? 'success' : 'danger'" size="small">
+              {{ st.heartbeat.ok ? '正常' : '最近一次未报到' }}
+            </el-tag>
+            <el-tag v-else type="info" size="small">等待第一次报到</el-tag>
+            <span class="muted"
+              >每 {{ st.heartbeat.every_min }} 分钟报到 {{ st.heartbeat.host }}；最近成功
+              {{ bj(st.heartbeat.ok_at) }}</span
+            >
+            <div v-if="st.heartbeat.at && !st.heartbeat.ok" class="err small">{{ st.heartbeat.error }}</div>
+          </template>
+          <span v-else class="muted"
+            >未配置。整台机器卡死或断网时平台自己的推送发不出去：在 config.yaml 设置 <code>heartbeat_url</code>，由
+            healthchecks.io 等外部服务在收不到报到时通知你（见部署指南）</span
+          >
+        </div>
+
+        <div class="item">
           <div class="label">模型</div>
           <template v-if="downModels.length">
             <div v-for="m in downModels" :key="m.id">

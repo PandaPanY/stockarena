@@ -67,6 +67,14 @@ export interface OpsStatus {
     extra_dir: string | null
   }
   disk: { path: string; total: number; free: number; free_share: number }
+  heartbeat: {
+    host: string | null
+    every_min: number
+    at?: string
+    ok?: boolean
+    error?: string | null
+    ok_at?: string
+  }
   models: { id: number; name: string; fails?: number; last_error?: string; last_ok_at?: string; down_since?: string }[]
   failed_sends: { title: string; error: string; at: string }[]
 }
