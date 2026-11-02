@@ -17,6 +17,8 @@ StockArena 是一个自部署的 A 股量化研究平台：AI（云端或本地�
 
 <sub>截图来自一台全新部署的演示实例（快速开始 + 默认策略库，研究模型为本地 Qwen），数字只是示例。</sub>
 
+> 📊 **研究报告：[让 AI 改了 472 个策略版本之后](docs/research/2026-11-01-ai-versions.md)**。开发期比当时冠军更好的 AI 版本，只有 34% 在留出期也更好；开发期提升与留出期提升的相关系数是 −0.19。升级门槛拒绝了 98.7% 的改动，通过的 6 个里有 5 个在留出期变差。另做的对照实验里，换一个模型（DeepSeek 对本地 Qwen）[看不出差别](docs/research/2026-11-02-model-compare.md)。
+
 [English summary](#english-summary)
 
 ## 它和其他回测框架有什么不同
@@ -81,6 +83,7 @@ docker compose logs | grep 设置码
 | [功能说明](docs/FEATURES.md) | 功能细节与实现取舍 |
 | [架构](docs/ARCHITECTURE.md) | 程序结构、数据表、定时任务 |
 | [需求与决策](docs/PRD.md) | 产品设计与研究记录（含失败的尝试） |
+| [研究报告](docs/research/) | AI 优化有没有用、换模型有没有差别、跨资产配置（预注册），见 [docs/prereg](docs/prereg/) |
 
 ## 数据从哪里来
 
@@ -124,6 +127,9 @@ evaluation pipeline keeps it honest.
   and a built-in **MCP server** so Claude Code, Cursor and other MCP clients can research strategies with a personal token (development-period
   results only — the holdout stays hidden from automated agents).
 - Multi-user with data isolation; one-command Docker deployment.
+- **Research report** ([Chinese](docs/research/2026-11-01-ai-versions.md)): after 472 AI-proposed strategy versions, development-period gains
+  did not carry over to the holdout (correlation −0.19; only 1 of 6 promoted versions improved out of sample). A controlled comparison found
+  no difference between DeepSeek and a local Qwen model.
 
 Data is fetched at runtime by your own deployment from public third-party sources (Sina, Tencent, Eastmoney, CNINFO, CSI, Baostock, …);
 the project does not provide or redistribute any market data. The UI and documentation are in Simplified Chinese.
