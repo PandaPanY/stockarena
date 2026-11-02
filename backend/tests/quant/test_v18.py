@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import base64
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -55,8 +55,10 @@ def test_parse_reports_missing_columns():
         raise AssertionError("应提示缺少列")
 
 
-async def test_real_report_against_replay(arena):
+async def test_real_report_against_replay(arena, monkeypatch):
     """把模拟账户的成交以略差的价格「实盘执行」一遍：报告应配对全部成交、得到正的执行价差，收益差等于价差损耗。"""
+    # 回放到「现在」为止：固定时钟，否则回放天数随运行日期增长，累计的价差损耗终会超过「有偏差」的范围
+    monkeypatch.setattr(live, "utcnow", lambda: datetime(2026, 10, 12, 10, 0, tzinfo=UTC))
     with get_sessionmaker()() as s:
         st = _strategy(s)
         s.commit()
