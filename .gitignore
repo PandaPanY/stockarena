@@ -28,5 +28,5 @@ frontend/dist/
 Thumbs.db
 
 # 个人部署配置（服务器地址等）
-scripts/deploy.env
+scripts/deploy*.env
 .claude/

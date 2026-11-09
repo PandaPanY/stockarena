@@ -103,6 +103,17 @@ journalctl --user -u stockarena -f  # 查看日志
 
 服务器地址用环境变量 `SA_DEPLOY_HOST` 指定，或写在不进版本库的 `scripts/deploy.env` 里（如 `SA_DEPLOY_HOST=user@10.0.0.2`）；需要能免密 ssh 登录。
 
+其他可选设置（同样写在 `scripts/deploy.env` 里）：
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `SA_DEPLOY_DIR` | `stockarena` | 服务器上的目录：相对路径在主目录下；也可以写绝对路径，如数据盘上的 `/data/work/stockarena`（systemd 服务文件里的路径要一致） |
+| `SA_DEPLOY_PORT` | `18080` | 部署后检查服务用的端口 |
+| `SA_DEPLOY_URL_HOST` | 取 `SA_DEPLOY_HOST` 的主机部分 | 部署后检查服务用的地址（`SA_DEPLOY_HOST` 是 ssh 别名时要填 IP） |
+| `SA_DEPLOY_UV_CACHE` | 空 | 服务器上 uv 的缓存目录（系统盘小时放到数据盘） |
+
+部署到多台服务器时，每台写一个配置文件（如 `scripts/deploy-test.env`，`scripts/deploy*.env` 都不进版本库），用 `SA_DEPLOY_ENV` 指定：`SA_DEPLOY_ENV=scripts/deploy-test.env bash scripts/deploy.sh`。
+
 ## 4. HTTPS 与反向代理
 
 在公网或不信任的网络中使用时，请放在反向代理后面并启用 HTTPS，同时只让反向代理访问 18080 端口（Docker 方式把端口映射改为 `127.0.0.1:18080:18080`）。
