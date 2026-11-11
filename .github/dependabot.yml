@@ -44,3 +44,7 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    ignore:
+      # 项目统一用 Python 3.13（服务器也是 uv 管理的 3.13），升级 Python 需要单独测试，不自动更新
+      - dependency-name: python
+        versions: [">= 3.14"]
