@@ -6,6 +6,8 @@
 - 复权因子下降：后复权因子只应随分红送转上升；
 - 长期无行情：上市后连续 60 个交易日以上没有日线（长期停牌或数据缺失）；
 - 数据未更新：仍在股票池中，但最近 5 个交易日以上没有日线（停牌或数据源未更新）。
+- 交叉核对（配置了同花顺 Key 时）：每晚随机抽查 30 只股票最近 10 个交易日的不复权收盘价，与同花顺不一致的列出来
+  （结果在「交叉核对（同花顺）」分组里；抽查失败不影响其他检查）。
 
 扫描结果保存在 app_settings（data_quality），每晚数据更新后自动扫描；用户可以把确认无误的条目标记为忽略。
 发现问题的标的可以在页面上重新下载日线与除权数据，之后自动重新回测所有在用策略。
@@ -34,6 +36,10 @@ IPO_DAYS = 5                # 新股上市前几个交易日涨跌幅限制不�
 GAP_DAYS = 60
 STALE_DAYS = 5
 MAX_ISSUES = 300
+CROSS_NAME = "交叉核对（同花顺）"
+CROSS_SAMPLE = 30
+CROSS_DAYS = 10
+CROSS_TOL = 0.005           # 收盘价相差超过 0.5% 算不一致（两边都是不复权价，正常应完全相同）
 LEVEL_ORDER = {"error": 0, "warn": 1, "info": 2}
 
 
@@ -162,19 +168,74 @@ def scan(s: Session) -> dict:
     from app.quant.data import get_panel
 
     result: dict = {"checked_at": utcnow().isoformat(), "universes": {}}
+    stocks: dict[str, str] = {}
     for universe, start in universes_in_use(s):
         try:
             panel = get_panel(s, universe, start, date.today())
         except Exception as e:  # noqa: BLE001 - 单个股票池失败不影响其他
             result["universes"][universe] = {"error": str(e)}
             continue
+        stocks |= {panel.symbols[j]: panel.names[j] for j in range(panel.shape[1])
+                   if panel.types[j] == "stock" and panel.has_bar[-1, j]}
         issues = scan_panel(panel)
         counts = {lv: sum(1 for x in issues if x["level"] == lv) for lv in LEVEL_ORDER}
         result["universes"][universe] = {
             "symbols": panel.shape[1], "days": panel.shape[0], "start": panel.dates[0].isoformat(),
             "end": panel.dates[-1].isoformat(), "counts": counts, "total": len(issues),
             "issues": issues[:MAX_ISSUES]}
+    try:
+        cross = cross_check(s, stocks)
+    except Exception as e:  # noqa: BLE001 - 交叉核对失败不影响其他检查
+        logger.warning("交叉核对失败：%s", e)
+        cross = {"error": f"交叉核对失败：{e}"}
+    if cross is not None:
+        result["universes"][CROSS_NAME] = cross
     return result
+
+
+def cross_check(s: Session, stocks: dict[str, str], provider=None, today: date | None = None) -> dict | None:
+    """抽查股票最近 CROSS_DAYS 个交易日的不复权收盘价与同花顺是否一致；没有配置同花顺 Key 时返回 None。"""
+    import random
+
+    from app.arena.deps import fuyao_provider
+    from app.market.types import Instrument
+    from app.models import DailyBarRow
+
+    provider = provider or fuyao_provider()
+    if provider is None or not stocks:
+        return None
+    today = today or date.today()
+    picked = sorted(random.Random(today.toordinal()).sample(sorted(stocks), min(CROSS_SAMPLE, len(stocks))))
+    issues, failed, compared = [], [], 0
+    first = last = None
+    for sym in picked:
+        rows = list(s.scalars(select(DailyBarRow).where(DailyBarRow.symbol == sym, DailyBarRow.date <= today)
+                              .order_by(DailyBarRow.date.desc()).limit(CROSS_DAYS)))
+        if not rows:
+            continue
+        mine = {r.date: float(r.close) for r in rows}
+        a, z = min(mine), max(mine)
+        try:
+            theirs = {b.date: float(b.close) for b in provider.daily_bars(
+                Instrument(sym, "CN", stocks[sym], "stock", "main"), a, z)}
+        except Exception as e:  # noqa: BLE001 - 单只失败不影响其他
+            failed.append(f"{sym}：{str(e)[:80]}")
+            continue
+        first, last = min(first or a, a), max(last or z, z)
+        for d, c in sorted(mine.items(), reverse=True):
+            t = theirs.get(d)
+            if t is None or c <= 0:
+                continue
+            compared += 1
+            if abs(t / c - 1) > CROSS_TOL:
+                issues.append({"symbol": sym, "name": stocks[sym], "date": d.isoformat(), "kind": "cross",
+                               "level": "warn",
+                               "detail": f"缓存收盘 {c:g}，同花顺 {t:g}（差 {t / c - 1:+.2%}），"
+                                         "可以重新下载这只股票的数据"})
+    return {"symbols": len(picked), "days": CROSS_DAYS, "start": first.isoformat() if first else None,
+            "end": last.isoformat() if last else None, "compared": compared,
+            "counts": {lv: sum(1 for x in issues if x["level"] == lv) for lv in LEVEL_ORDER}, "total": len(issues),
+            "issues": issues[:MAX_ISSUES], "failed": failed[:10]}
 
 
 def save(s: Session, result: dict) -> list[dict]:

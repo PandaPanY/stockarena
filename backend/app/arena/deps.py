@@ -22,24 +22,37 @@ MARKET_INFO = {code: {"name": m.name, "currency": m.currency, "tz": m.tz} for co
 
 @lru_cache
 def cn_provider():
-    """A股数据源（配置 cn_data_source、tushare_token）：默认新浪 / 腾讯，填了 Tushare token 时失败自动改用 Tushare。"""
+    """A股数据源（配置 cn_data_source、tushare_token、fuyao_key_file）：默认新浪 / 腾讯；填了 Tushare token 时
+    失败改用 Tushare（cn_data_source=tushare 时反过来）；填了同花顺 Key 文件时，股票日线最后再试同花顺。"""
     import logging
 
     from app.market.providers.fallback import FallbackProvider
+    from app.market.providers.fuyao_cn import FuyaoCNProvider, read_key
     from app.market.providers.tushare_cn import TushareCNProvider
 
     settings = get_settings()
-    sina = AkshareCNProvider()
-    if settings.cn_data_source == "akshare":
-        return sina
-    if not settings.tushare_token:
-        if settings.cn_data_source == "tushare":
+    provider = AkshareCNProvider()
+    if settings.cn_data_source != "akshare":
+        if settings.tushare_token:
+            tushare = TushareCNProvider(settings.tushare_token)
+            provider = (FallbackProvider(tushare, provider) if settings.cn_data_source == "tushare"
+                        else FallbackProvider(provider, tushare))
+        elif settings.cn_data_source == "tushare":
             logging.getLogger(__name__).warning("cn_data_source=tushare 但没有设置 tushare_token，改用新浪 / 腾讯")
-        return sina
-    tushare = TushareCNProvider(settings.tushare_token)
-    if settings.cn_data_source == "tushare":
-        return FallbackProvider(tushare, sina)
-    return FallbackProvider(sina, tushare)
+    key = read_key(settings.fuyao_key_file)
+    if settings.fuyao_key_file and not key:
+        logging.getLogger(__name__).warning("同花顺 Key 文件不存在或为空：%s", settings.fuyao_key_file)
+    if key and settings.cn_data_source != "akshare":
+        provider = FallbackProvider(provider, FuyaoCNProvider(key))
+    return provider
+
+
+def fuyao_provider():
+    """同花顺数据源（用于交叉核对）；没有配置 Key 时为 None。"""
+    from app.market.providers.fuyao_cn import FuyaoCNProvider, read_key
+
+    key = read_key(get_settings().fuyao_key_file)
+    return FuyaoCNProvider(key) if key else None
 
 
 @lru_cache

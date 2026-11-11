@@ -24,6 +24,7 @@ const KINDS: Record<DataIssue['kind'], string> = {
   factor: '复权因子',
   gap: '长期无行情',
   stale: '未更新',
+  cross: '与同花顺不一致',
 }
 
 async function load() {

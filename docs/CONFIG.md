@@ -29,6 +29,7 @@
 | `backup_dir` | `SA_BACKUP_DIR` | 空 | 每日备份再复制一份到这个目录（另一块硬盘、NAS 挂载目录等）；为空时只在 `data/backup/daily/` 保存 |
 | `cn_data_source` | `SA_CN_DATA_SOURCE` | `auto` | A 股行情数据源：`auto` 新浪 / 腾讯为主、失败时改用 Tushare（填了 token 时）；`tushare` Tushare 为主；`akshare` 只用新浪 / 腾讯。见 [DATA_SOURCES.md](DATA_SOURCES.md) |
 | `tushare_token` | `SA_TUSHARE_TOKEN` | 空 | Tushare Pro 的 token（tushare.pro 注册获取）。不要提交到代码仓库 |
+| `fuyao_key_file` | `SA_FUYAO_KEY_FILE` | 空 | 同花顺金融数据 API 的 Key 所在文件（文件只放 Key 一行）。填了时作为 A 股股票日线的最后一个备用数据源，并用于每晚的数据交叉核对。见 [DATA_SOURCES.md](DATA_SOURCES.md) |
 | `heartbeat_url` | `SA_HEARTBEAT_URL` | 空 | 外部心跳：服务正常时每 5 分钟访问一次这个地址，由外部服务在收不到报到时通知你（机器卡死、断网时平台自己发不出推送）。地址里的 id 相当于密钥，不要公开。见 [DEPLOY.md](DEPLOY.md) 第 6 节 |
 | `mcp_enabled` | `SA_MCP_ENABLED` | `true` | MCP 服务（`/api/mcp`）：用户用个人 API 令牌从 Claude Code、Cursor 等 AI 客户端查询和研究策略。见 [MCP.md](MCP.md) |
 | `auto_run` | `SA_AUTO_RUN` | `true` | 按收盘时间自动执行日终流程、每晚数据更新与 AI 优化、自选股监控等定时任务 |

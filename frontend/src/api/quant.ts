@@ -1152,7 +1152,7 @@ export interface DataIssue {
   symbol: string
   name: string
   date: string
-  kind: 'jump' | 'ohlc' | 'factor' | 'gap' | 'stale'
+  kind: 'jump' | 'ohlc' | 'factor' | 'gap' | 'stale' | 'cross'
   level: IssueLevel
   detail: string
   ignored: boolean

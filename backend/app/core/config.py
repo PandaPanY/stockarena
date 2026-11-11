@@ -77,6 +77,9 @@ class Settings(BaseSettings):
     # tushare = Tushare 为主、失败时改用新浪 / 腾讯。tushare_token 在 tushare.pro 注册后获取，见 docs/DATA_SOURCES.md
     cn_data_source: Literal["auto", "akshare", "tushare"] = "auto"
     tushare_token: str | None = None
+    # 同花顺金融数据 API 的 Key 所在文件（fuyao.aicubes.cn 申请；文件只放 Key 一行，权限 600）。
+    # 填了时作为A股股票日线的最后一个备用数据源，并用于每晚的数据交叉核对
+    fuyao_key_file: Path | None = None
 
     # 外部心跳：服务正常时每 5 分钟访问一次这个地址（如 healthchecks.io 的 ping 地址、Uptime Kuma 的推送地址）。
     # 整台机器卡死或断网时平台自己的推送也发不出去，由外部服务在收不到报到时通知你，见 docs/DEPLOY.md
