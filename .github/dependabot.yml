@@ -7,6 +7,11 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    ignore:
+      # anthropic 2.x 默认使用 API 版本 2026-10-21（不再接受 temperature / top_p，密钥改用 Authorization: Bearer），
+      # 需要按迁移步骤单独升级，暂不自动更新
+      - dependency-name: anthropic
+        update-types: ["version-update:semver-major"]
     groups:
       python-minor:
         update-types: [minor, patch]
