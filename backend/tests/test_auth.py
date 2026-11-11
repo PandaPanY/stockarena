@@ -108,6 +108,7 @@ def test_setup_login_flow(auth_client: TestClient):
 def test_forged_cookie_rejected(auth_client: TestClient):
     c = auth_client
     setup(c)
+    c.cookies.clear()                  # 只发伪造的 Cookie（不清空时测试客户端会把登录得到的有效 Cookie 一起发出去）
     c.cookies.set(core.COOKIE_NAME, "1.1.9999999999.forged")
     assert c.get("/api/system/health").status_code == 401
 
