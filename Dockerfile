@@ -13,7 +13,7 @@ COPY docs/USER_GUIDE.md /src/docs/USER_GUIDE.md
 RUN npm run build
 
 # ---------- 后端 ----------
-FROM python:3.13-slim AS app
+FROM python:3.15-slim AS app
 COPY --from=ghcr.io/astral-sh/uv:0.9.11 /uv /usr/local/bin/uv
 
 # tzdata：日志按北京时间显示（各市场的定时任务本身都带明确时区，不依赖这里）
