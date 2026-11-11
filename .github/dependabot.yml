@@ -20,6 +20,9 @@ updates:
       # TypeScript 7 与类型检查用的 vue-tsc 不兼容（vue-tsc 支持后再放开）
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
+      # vue-tsc 3.3.12 ~ 3.3.14 在 reactive 对象的 v-model 上误报类型错误，先固定在 3.3.11（以后的版本修好再放开）
+      - dependency-name: vue-tsc
+        versions: [">= 3.3.12"]
     groups:
       npm-minor:
         update-types: [minor, patch]
