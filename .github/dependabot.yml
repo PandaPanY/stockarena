@@ -16,6 +16,10 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    ignore:
+      # TypeScript 7 与类型检查用的 vue-tsc 不兼容（vue-tsc 支持后再放开）
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
     groups:
       npm-minor:
         update-types: [minor, patch]
