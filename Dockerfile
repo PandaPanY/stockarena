@@ -3,7 +3,7 @@
 # 运行时数据（数据库、日志、主密钥、行情缓存）都在 /app/data，请挂载为卷并定期备份。
 
 # ---------- 前端打包 ----------
-FROM node:24-slim AS frontend
+FROM node:26-slim AS frontend
 WORKDIR /src/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
